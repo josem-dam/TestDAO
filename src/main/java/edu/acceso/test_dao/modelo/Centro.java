@@ -8,8 +8,8 @@ import java.util.Arrays;
 public class Centro implements Entity {
 
     public static enum Titularidad {
-        PUBLICA("pública"),
-        PRIVADA("privada");
+        PUBLICA("público"),
+        PRIVADA("privado");
 
         private String nombre;
 
