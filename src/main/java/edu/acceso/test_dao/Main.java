@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
 import edu.acceso.test_dao.backend.Crud;
+import edu.acceso.test_dao.backend.DataAccessException;
 import edu.acceso.test_dao.backend.sql.CentroSqlDao;
 import edu.acceso.test_dao.backend.sql.ConnectionPool;
 import edu.acceso.test_dao.backend.sql.EstudianteSqlDao;
@@ -68,6 +69,31 @@ public class Main {
 
 
             System.out.println("\n=== Listado de centros ===");
+            centroDao.get().forEach(System.out::println);
+
+            // Transacción
+            try(Connection conn = cp.getConnection()) {
+                Crud<Centro> cdao = new CentroSqlDao(conn);
+                Crud<Estudiante> edao = new EstudianteSqlDao(conn);
+
+                conn.setAutoCommit(false);
+
+                try {
+                    cdao.delete(astaroth);
+                    // Esta inserción falla.
+                    cdao.insert(new Centro(11004866L, "IES Centro repetido", Titularidad.PUBLICA));
+                    conn.commit();
+                }
+                catch(DataAccessException e) {
+                    System.err.printf("Se malogra la transacción: %s\n", e.getMessage());
+                    conn.rollback();
+                }
+                finally {
+                    conn.setAutoCommit(true);
+                }
+            }
+
+            System.out.println("\n=== Listado de centros (no desaparece Astaroth) ===");
             centroDao.get().forEach(System.out::println);
 
         }
