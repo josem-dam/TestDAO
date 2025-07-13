@@ -12,34 +12,47 @@ import java.util.Optional;
 
 import javax.sql.DataSource;
 
-import edu.acceso.test_dao.backend.Crud;
-import edu.acceso.test_dao.backend.DataAccessException;
-import edu.acceso.test_dao.backend.sql.ConnProvider.ConnWrapper;
+import edu.acceso.test_dao.backend.core.Crud;
+import edu.acceso.test_dao.backend.core.DataAccessException;
+import edu.acceso.test_dao.backend.core.SqlConnProvider;
+import edu.acceso.test_dao.backend.core.SqlConnProvider.ConnWrapper;
 import edu.acceso.test_dao.modelo.Centro;
 import edu.acceso.test_dao.modelo.Centro.Titularidad;
 
+/**
+ * Implementación de {@link Crud} para la entidad {@link Centro} usando SQL.
+ * Esta clase proporciona métodos para realizar operaciones CRUD sobre centros
+ * en una base de datos relacional.
+ */
 public class CentroSqlDao implements Crud<Centro> {
 
-    private final ConnProvider cp;
+    /** Proveedor de conexiones SQL. */
+    private final SqlConnProvider cp;
 
+    /**
+     * Constructor que inicializa el proveedor de conexiones con un {@link DataSource}.
+     *
+     * @param ds Fuente de datos para obtener conexiones.
+     * @throws DataAccessException Si ocurre un error al inicializar el proveedor de conexiones.
+     */
     public CentroSqlDao(DataSource ds) throws DataAccessException {
-        cp = new ConnProvider(ds);
+        cp = new SqlConnProvider(ds);
     }
 
     public CentroSqlDao(Connection conn) {
-        cp = new ConnProvider(conn);
+        cp = new SqlConnProvider(conn);
     }
 
     public static Centro resultSetToCentro(ResultSet rs) throws SQLException {
         Long id = rs.getLong("id_centro");
         String nombre = rs.getString("nombre");
-        Titularidad titularidad = Titularidad.fromNombre(rs.getString("titularidad"));
+        Titularidad titularidad = Titularidad.fromString(rs.getString("titularidad"));
         return new Centro(id, nombre, titularidad);
     }
 
     public static void centroToParams(PreparedStatement pstmt, Centro centro) throws SQLException {
         pstmt.setString(1, centro.getNombre());
-        pstmt.setString(2, centro.getTitularidad().getNombre());
+        pstmt.setString(2, centro.getTitularidad().toString());
         // En este caso el ID siempre tiene valor, con lo que puede usarse directamente setInt.
         pstmt.setObject(3, centro.getId(), Types.BIGINT);
     }

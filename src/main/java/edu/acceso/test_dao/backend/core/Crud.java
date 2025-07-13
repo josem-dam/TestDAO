@@ -1,10 +1,8 @@
-package edu.acceso.test_dao.backend;
+package edu.acceso.test_dao.backend.core;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-
-import edu.acceso.test_dao.modelo.Entity;
 
 public interface Crud<T extends Entity> {
 

@@ -1,4 +1,4 @@
-package edu.acceso.test_dao.backend.sql;
+package edu.acceso.test_dao.backend.core;
 
 import java.sql.Connection;
 import java.sql.SQLException;

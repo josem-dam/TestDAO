@@ -1,18 +1,16 @@
-package edu.acceso.test_dao.backend.sql;
+package edu.acceso.test_dao.backend.core;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 
 import javax.sql.DataSource;
 
-import edu.acceso.test_dao.backend.DataAccessException;
-
 /**
  * Envoltorio para objetos DataSource y Connection
  * que al cerrarse deja abierta la conexión si se creó
  * con una conexión, pero la cierra si se creó con un DataSource.
  */
-public class ConnProvider {
+public class SqlConnProvider {
 
     private final DataSource ds;
     private final Connection conn;
@@ -47,12 +45,12 @@ public class ConnProvider {
         }
     }
 
-    public ConnProvider(DataSource ds) {
+    public SqlConnProvider(DataSource ds) {
         this.ds = ds;
         conn = null;
     }
 
-    public ConnProvider(Connection conn) {
+    public SqlConnProvider(Connection conn) {
         ds = null;
         this.conn = conn;
     }

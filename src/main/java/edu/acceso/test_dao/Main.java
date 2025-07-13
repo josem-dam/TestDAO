@@ -7,10 +7,10 @@ import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
-import edu.acceso.test_dao.backend.Crud;
-import edu.acceso.test_dao.backend.DataAccessException;
+import edu.acceso.test_dao.backend.core.ConnectionPool;
+import edu.acceso.test_dao.backend.core.Crud;
+import edu.acceso.test_dao.backend.core.DataAccessException;
 import edu.acceso.test_dao.backend.sql.CentroSqlDao;
-import edu.acceso.test_dao.backend.sql.ConnectionPool;
 import edu.acceso.test_dao.backend.sql.EstudianteSqlDao;
 import edu.acceso.test_dao.modelo.Centro;
 import edu.acceso.test_dao.modelo.Estudiante;

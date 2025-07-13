@@ -14,22 +14,23 @@ import java.util.Optional;
 
 import javax.sql.DataSource;
 
-import edu.acceso.test_dao.backend.Crud;
-import edu.acceso.test_dao.backend.DataAccessException;
-import edu.acceso.test_dao.backend.sql.ConnProvider.ConnWrapper;
+import edu.acceso.test_dao.backend.core.Crud;
+import edu.acceso.test_dao.backend.core.DataAccessException;
+import edu.acceso.test_dao.backend.core.SqlConnProvider;
+import edu.acceso.test_dao.backend.core.SqlConnProvider.ConnWrapper;
 import edu.acceso.test_dao.modelo.Centro;
 import edu.acceso.test_dao.modelo.Estudiante;
 
 public class EstudianteSqlDao implements Crud<Estudiante> {
 
-    private final ConnProvider cp;
+    private final SqlConnProvider cp;
 
     public EstudianteSqlDao(DataSource ds) throws DataAccessException {
-        cp = new ConnProvider(ds);
+        cp = new SqlConnProvider(ds);
     }
 
     public EstudianteSqlDao(Connection conn) {
-        cp = new ConnProvider(conn);
+        cp = new SqlConnProvider(conn);
     }
 
     private static Estudiante resultSetToEstudiante(ResultSet rs, Connection conn) throws SQLException {

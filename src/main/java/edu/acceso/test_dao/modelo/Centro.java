@@ -2,33 +2,50 @@ package edu.acceso.test_dao.modelo;
 
 import java.util.Arrays;
 
+import edu.acceso.test_dao.backend.core.Entity;
+
 /**
  * Modela un centro de enseñanza.
  */
 public class Centro implements Entity {
 
+    /**
+     * Enumeración de las titularidades de un centro.
+     * <p>
+     * Las titularidades pueden ser públicas o privadas.
+     */
     public static enum Titularidad {
+        /** Titularidad pública. */
         PUBLICA("público"),
+        /** Titularidad privada. */
         PRIVADA("privado");
 
-        private String nombre;
+        /** Nombre de la titularidad. */
+        private String desc;
 
+        /**
+         * Constructor de la titularidad.
+         * @param desc Descripción de la titularidad.
+         */
         Titularidad(String desc) {
-            this.nombre = desc;
+            this.desc = desc;
         }
 
-        public String getNombre() {
-            return nombre;
+        @Override
+        public String toString() {
+            return desc;
         }
 
         /**
          * Obtiene la titularidad a partir de la descripción.
-         * @param nombre La descripción
-         * @return El elemento Titularidad o null, si no hay ninguno con esa descripción.
+         * @param desc La descripción que quiere utilizarse para identificar la titularidad
+         * @return El enum Titularidad o null, si no hay ninguno con esa descripción.
          */
-        public static Titularidad fromNombre(String nombre) {
+        public static Titularidad fromString(String desc) {
             return Arrays.stream(Titularidad.values())
-                .filter(t -> t.getNombre().compareToIgnoreCase(nombre) == 0).findFirst().orElse(null);
+                .filter(t -> t.toString().compareToIgnoreCase(desc) == 0)
+                .findFirst()
+                .orElse(null);
         }
     }
 
@@ -45,6 +62,10 @@ public class Centro implements Entity {
      */
     private Titularidad titularidad;
 
+    /**
+     * Constructor por defecto.
+     * Inicializa el objeto sin datos.
+     */
     public Centro() {
         super();
     }
@@ -56,7 +77,7 @@ public class Centro implements Entity {
      * @param titularidad Titularidad del centro.
      * @return El propio objeto.
      */
-    public Centro cargarDatos(Long id, String nombre, Titularidad titularidad) {
+    public Centro inicializar(Long id, String nombre, Titularidad titularidad) {
         setId(id);
         setNombre(nombre);
         setTitularidad(titularidad);
@@ -70,7 +91,7 @@ public class Centro implements Entity {
      * @param titularidad Titularidad del centro (pública o privada)
      */
     public Centro(Long id, String nombre, Titularidad titularidad) {
-        cargarDatos(id, nombre, titularidad);
+        inicializar(id, nombre, titularidad);
     }
 
     @Override
