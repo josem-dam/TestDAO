@@ -14,8 +14,7 @@ import javax.sql.DataSource;
 
 import edu.acceso.test_dao.backend.core.Crud;
 import edu.acceso.test_dao.backend.core.DataAccessException;
-import edu.acceso.test_dao.backend.core.SqlConnProvider;
-import edu.acceso.test_dao.backend.core.SqlConnProvider.ConnWrapper;
+import edu.acceso.test_dao.backend.core.ConnProvider;
 import edu.acceso.test_dao.modelo.Centro;
 import edu.acceso.test_dao.modelo.Centro.Titularidad;
 
@@ -26,31 +25,48 @@ import edu.acceso.test_dao.modelo.Centro.Titularidad;
  */
 public class CentroSqlDao implements Crud<Centro> {
 
-    /** Proveedor de conexiones SQL. */
-    private final SqlConnProvider cp;
+    /** Proveedor de conexiones. */
+    private final ConnProvider cp;
 
     /**
      * Constructor que inicializa el proveedor de conexiones con un {@link DataSource}.
      *
      * @param ds Fuente de datos para obtener conexiones.
-     * @throws DataAccessException Si ocurre un error al inicializar el proveedor de conexiones.
      */
-    public CentroSqlDao(DataSource ds) throws DataAccessException {
-        cp = new SqlConnProvider(ds);
+    public CentroSqlDao(DataSource ds) {
+        cp = new ConnProvider(ds);
     }
 
+    /**
+     * Constructor que inicializa el proveedor de conexiones con una conexión existente.
+     * @param conn Conexión existente para el proveedor de conexiones.
+     */
     public CentroSqlDao(Connection conn) {
-        cp = new SqlConnProvider(conn);
+        cp = new ConnProvider(conn);
     }
 
-    public static Centro resultSetToCentro(ResultSet rs) throws SQLException {
+    /**
+     * Convierte un {@link ResultSet} en un objeto {@link Centro}.
+     *
+     * @param rs El {@link ResultSet} que contiene los datos del centro.
+     * @return Un objeto {@link Centro} con los datos del {@link ResultSet}.
+     * @throws SQLException Si ocurre un error al acceder a los datos del {@link ResultSet}.
+     */
+    private static Centro resultSetToCentro(ResultSet rs) throws SQLException {
         Long id = rs.getLong("id_centro");
         String nombre = rs.getString("nombre");
         Titularidad titularidad = Titularidad.fromString(rs.getString("titularidad"));
         return new Centro(id, nombre, titularidad);
     }
 
-    public static void centroToParams(PreparedStatement pstmt, Centro centro) throws SQLException {
+    /**
+     * Establece los parámetros de un {@link PreparedStatement} con los datos de un {@link Centro}.
+     *
+     * @param pstmt El {@link PreparedStatement} donde se establecerán los parámetros.
+     * @param centro El objeto {@link Centro} cuyos datos se usarán para establecer los parámetros.
+     * @throws SQLException Si ocurre un error al establecer los parámetros en el {@link PreparedStatement}.
+     */
+    private static void centroToParams(PreparedStatement pstmt, Centro centro) throws SQLException {
         pstmt.setString(1, centro.getNombre());
         pstmt.setString(2, centro.getTitularidad().toString());
         // En este caso el ID siempre tiene valor, con lo que puede usarse directamente setInt.
@@ -61,8 +77,7 @@ public class CentroSqlDao implements Crud<Centro> {
     public Optional<Centro> get(Long id) throws DataAccessException {
         String sqlString = "SELECT * FROM Centro WHERE id_centro = ?";
 
-        try(ConnWrapper cw = cp.getConnWrapper()) {
-            Connection conn = cw.getConnection();
+        try(Connection conn = cp.getConnection();) {
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 pstmt.setLong(1, id);
                 try(ResultSet rs = pstmt.executeQuery()) {
@@ -80,8 +95,7 @@ public class CentroSqlDao implements Crud<Centro> {
         String sqlString = "SELECT * FROM Centro";
         List<Centro> centros = new ArrayList<>();
 
-        try(ConnWrapper cw = cp.getConnWrapper()) {
-            Connection conn = cw.getConnection();
+        try(Connection conn = cp.getConnection()) {
             try(Statement pstmt = conn.createStatement()) {
                 try(ResultSet rs = pstmt.executeQuery(sqlString)) {
                     while(rs.next()) {
@@ -100,8 +114,7 @@ public class CentroSqlDao implements Crud<Centro> {
     public boolean delete(Long id) throws DataAccessException {
         String sqlString = "DELETE FROM Centro WHERE id_centro = ?";
 
-        try(ConnWrapper cw = cp.getConnWrapper()) {
-            Connection conn = cw.getConnection();
+        try(Connection conn = cp.getConnection()) {
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 pstmt.setLong(1, id);
                 return pstmt.executeUpdate() > 0;
@@ -116,8 +129,7 @@ public class CentroSqlDao implements Crud<Centro> {
     public void insert(Centro centro) throws DataAccessException {
         String sqlString = "INSERT INTO Centro (nombre, titularidad, id_centro) VALUES (?, ?, ?)";
 
-        try(ConnWrapper cw = cp.getConnWrapper()) {
-            Connection conn = cw.getConnection();
+        try(Connection conn = cp.getConnection()) {
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 centroToParams(pstmt, centro);
                 pstmt.executeUpdate();
@@ -132,8 +144,7 @@ public class CentroSqlDao implements Crud<Centro> {
     public boolean update(Centro centro) throws DataAccessException {
         String sqlString = "UPDATE Centro SET nombre = ?, titularidad = ? WHERE id_centro = ?";
 
-        try(ConnWrapper cw = cp.getConnWrapper()) {
-            Connection conn = cw.getConnection();
+        try(Connection conn = cp.getConnection()) {
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 centroToParams(pstmt, centro);
                 return pstmt.executeUpdate() > 0;
@@ -147,8 +158,7 @@ public class CentroSqlDao implements Crud<Centro> {
     @Override
     public boolean update(Long oldId, Long newId) throws DataAccessException {
         String sqlString = "UPDATE Centro SET id_centro = ? WHERE id_centro = ?";
-        try(ConnWrapper cw = cp.getConnWrapper()) {
-            Connection conn = cw.getConnection();
+        try(Connection conn = cp.getConnection()) {
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 pstmt.setLong(1, oldId);
                 pstmt.setLong(2, newId);

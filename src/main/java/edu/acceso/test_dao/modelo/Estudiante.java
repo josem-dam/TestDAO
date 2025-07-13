@@ -56,7 +56,6 @@ public class Estudiante implements Entity {
      * @param nombre El nombre del estudiante.
      * @param nacimiento La fecha de nacimiento.
      * @param centro El centro al que está adscrito.
-     * @return El propio objeto.
      */
     public Estudiante(Long id, String nombre, LocalDate nacimiento, Centro centro) {
         this.cargarDatos(id, nombre, nacimiento, centro);

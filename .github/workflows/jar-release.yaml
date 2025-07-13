@@ -1,0 +1,38 @@
+name: Publicar un paquete jar con cada versión
+
+on:
+  release:
+    types: [created] # Se ejecuta cuando se crea una nueva release
+
+jobs:
+  build-and-package:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Obtener el código fuente del repositorio
+      uses: actions/checkout@v4
+
+    - name: Instalar Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21' # Cambia según tu versión de Java
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Construir el paquete con Maven
+      run: mvn clean package 
+
+    - name: Obtener nombre
+      id: jar-name
+      run: |
+        echo "JAR_NAME=$(basename "$PWD")" >> $GITHUB_OUTPUT
+
+    - name: Subir a GitHub
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }} 
+        asset_path: target/package.jar
+        asset_name: ${{ steps.jar-name.outputs.JAR_NAME }}.jar
+        asset_content_type: application/java-archive

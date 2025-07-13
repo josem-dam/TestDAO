@@ -4,6 +4,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Interfaz genérica para operaciones CRUD (Crear, Leer, Actualizar, Borrar)
+ * sobre entidades de tipo T.
+ * @param <T> Tipo de entidad que maneja esta implementación.
+ */
 public interface Crud<T extends Entity> {
 
     /**

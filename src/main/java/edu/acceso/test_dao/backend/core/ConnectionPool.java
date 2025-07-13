@@ -10,6 +10,11 @@ import java.util.stream.Collectors;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
+/**
+ * Pool de conexiones para manejar múltiples conexiones a una base de datos.
+ * Utiliza HikariCP como proveedor de conexión y el patrón Singleton
+ * para garantizar que solo haya una instancia por combinación de URL, usuario y contraseña.
+ */
 public class ConnectionPool implements AutoCloseable {
 
     private static Map<Integer, ConnectionPool> instances = new HashMap<>();
