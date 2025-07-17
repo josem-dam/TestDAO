@@ -65,7 +65,7 @@ public class EstudianteSqlDao implements Crud<Estudiante> {
         Centro centro = null;
 
         // Carga inmediata.
-        if(idCentro != null) {
+        if(!rs.wasNull()) {
             CentroSqlDao centroDao = new CentroSqlDao(conn);
             try {
                 centro = centroDao.get(idCentro).orElse(null);
