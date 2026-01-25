@@ -2,7 +2,7 @@ package edu.acceso.test_dao.modelo;
 
 import java.util.Arrays;
 
-import edu.acceso.test_dao.backend.core.Entity;
+import edu.acceso.sqlutils.crud.Entity;
 
 /**
  * Modela un centro de enseñanza.

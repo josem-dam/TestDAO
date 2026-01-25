@@ -60,6 +60,13 @@
         </plugins>
     </build>
 
+    <repositories>
+        <repository>
+            <id>jitpack.io</id>
+		    <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
+
     <dependencies>
         <!-- Registro de eventos -->
         <dependency>
@@ -78,14 +85,14 @@
         <dependency>
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
-            <version>3.49.1.0</version>
+            <version>3.50.1.0</version>
         </dependency>
 
-        <!-- Dependencia para HikariCP, un pool de conexiones eficiente -->
+        <!-- Tiene implementados DataAccessException, Entity, TransactionManager y ConnectionPool -->
         <dependency>
-            <groupId>com.zaxxer</groupId>
-            <artifactId>HikariCP</artifactId>
-            <version>6.2.1</version>
+            <groupId>com.github.sio2sio2</groupId>
+            <artifactId>sqlutils</artifactId>
+            <version>v2.6.3</version>
         </dependency>
     </dependencies>
 </project>

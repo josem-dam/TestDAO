@@ -1,4 +1,4 @@
-package edu.acceso.test_dao.backend.sql;
+package edu.acceso.test_dao.backend.dao;
 
 import java.sql.Connection;
 import java.sql.Date;
@@ -12,11 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import javax.sql.DataSource;
-
-import edu.acceso.test_dao.backend.core.Crud;
-import edu.acceso.test_dao.backend.core.DataAccessException;
-import edu.acceso.test_dao.backend.core.ConnProvider;
+import edu.acceso.sqlutils.errors.DataAccessException;
+import edu.acceso.test_dao.backend.Crud;
 import edu.acceso.test_dao.modelo.Centro;
 import edu.acceso.test_dao.modelo.Estudiante;
 
@@ -25,26 +22,14 @@ import edu.acceso.test_dao.modelo.Estudiante;
  * Esta clase proporciona métodos para realizar operaciones CRUD sobre estudiantes
  * en una base de datos relacional.
  */
-public class EstudianteSqlDao implements Crud<Estudiante> {
-
-    /** Proveedor de conexiones. */
-    private final ConnProvider cp;
-
-    /**
-     * Constructor que inicializa el proveedor de conexiones con un {@link DataSource}.
-     *
-     * @param ds Fuente de datos para obtener conexiones.
-     */
-    public EstudianteSqlDao(DataSource ds) {
-        cp = new ConnProvider(ds);
-    }
+public class EstudianteSqlDao extends BaseDao<Estudiante> {
 
     /**
      * Constructor que inicializa el proveedor de conexiones con una conexión existente.
-     * @param conn Conexión existente para el proveedor de conexiones.
+     * @param key La clave de la conexión a usar.
      */
-    public EstudianteSqlDao(Connection conn) {
-        cp = new ConnProvider(conn);
+    public EstudianteSqlDao(String key) {
+        super(key);
     }
 
     /**
@@ -55,26 +40,14 @@ public class EstudianteSqlDao implements Crud<Estudiante> {
      * @return Un objeto {@link Estudiante} con los datos del {@link ResultSet}.
      * @throws SQLException Si ocurre un error al acceder a los datos del {@link ResultSet}.
      */
-    private static Estudiante resultSetToEstudiante(ResultSet rs, Connection conn) throws SQLException {
+    private static Estudiante resultSetToEstudiante(ResultSet rs) throws SQLException {
         Long id = rs.getLong("id_estudiante");
-        String nombre = rs.getString("nombre");
+        String nombre = rs.getString("e_nombre");
         Date nac = rs.getDate("nacimiento");
         LocalDate nacimiento = nac == null?null:nac.toLocalDate();
     
-        Long idCentro = rs.getLong("centro");
-        Centro centro = null;
-
-        // Carga inmediata.
-        if(!rs.wasNull()) {
-            CentroSqlDao centroDao = new CentroSqlDao(conn);
-            try {
-                centro = centroDao.get(idCentro).orElse(null);
-                assert centro != null: "Identificador como clave foránea no existe";
-            }
-            catch(DataAccessException e) {
-                throw new SQLException(e);
-            }
-        }
+        rs.getLong("id_centro");
+        Centro centro = rs.wasNull()?null:CentroSqlDao.resultSetToCentro(rs);
 
         return new Estudiante(id, nombre, nacimiento, centro);
     }
@@ -97,13 +70,17 @@ public class EstudianteSqlDao implements Crud<Estudiante> {
 
     @Override
     public Optional<Estudiante> get(Long id) throws DataAccessException {
-        String sqlString = "SELECT * FROM Estudiante WHERE id_estudiante = ?";
+        String sqlString = """
+            SELECT e.*, c.*
+            FROM Centro c JOIN Estudiante e ON e.centro = c.id_centro 
+            WHERE e.id_estudiante = ?
+            """;
 
-        try(Connection conn = cp.getConnection()) {
+        try(Connection conn = getConnection()) {
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 pstmt.setLong(1, id);
                 try(ResultSet rs = pstmt.executeQuery()) {
-                    return rs.next()?Optional.of(resultSetToEstudiante(rs, conn)):Optional.empty();
+                    return rs.next()?Optional.ofNullable(resultSetToEstudiante(rs)):Optional.empty();
                 }
             }
         }
@@ -114,14 +91,14 @@ public class EstudianteSqlDao implements Crud<Estudiante> {
 
     @Override
     public List<Estudiante> get() throws DataAccessException {
-        String sqlString = "SELECT * FROM Estudiante";
+        String sqlString = "SELECT e.*, c.* FROM Centro c JOIN Estudiante e ON e.centro = c.id_centro";
         List<Estudiante> estudiantes = new ArrayList<>();
 
-        try(Connection conn = cp.getConnection()) {
+        try(Connection conn = getConnection()) {
             try(Statement pstmt = conn.createStatement()) {
                 try(ResultSet rs = pstmt.executeQuery(sqlString)) {
                     while(rs.next()) {
-                        estudiantes.add(resultSetToEstudiante(rs, conn));
+                        estudiantes.add(resultSetToEstudiante(rs));
                     }
                     return estudiantes;
                 }
@@ -135,7 +112,7 @@ public class EstudianteSqlDao implements Crud<Estudiante> {
     public boolean delete(Long id) throws DataAccessException {
         String sqlString = "DELETE FROM Estudiante WHERE id_estudiante = ?";
 
-        try(Connection conn = cp.getConnection();) {
+        try(Connection conn = getConnection()) {
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 pstmt.setLong(1, id);
                 return pstmt.executeUpdate() > 0;
@@ -148,9 +125,9 @@ public class EstudianteSqlDao implements Crud<Estudiante> {
 
     @Override
     public void insert(Estudiante estudiante) throws DataAccessException {
-        String sqlString = "INSERT INTO Estudiante (nombre, nacimiento, centro, id_estudiante) VALUES (?, ?, ?, ?)";
+        String sqlString = "INSERT INTO Estudiante (e_nombre, nacimiento, centro, id_estudiante) VALUES (?, ?, ?, ?)";
 
-        try(Connection conn = cp.getConnection();) {
+        try(Connection conn = getConnection()) {
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString, Statement.RETURN_GENERATED_KEYS)) {
                 estudianteToParams(pstmt, estudiante);
                 pstmt.executeUpdate();
@@ -166,9 +143,9 @@ public class EstudianteSqlDao implements Crud<Estudiante> {
 
     @Override
     public boolean update(Estudiante estudiante) throws DataAccessException {
-        String sqlString = "UPDATE Estudiante Centro SET nombre = ?, nacimiento = ?, centro = ? WHERE id_estudiante = ?";
+        String sqlString = "UPDATE Estudiante SET e_nombre = ?, nacimiento = ?, centro = ? WHERE id_estudiante = ?";
 
-        try(Connection conn = cp.getConnection()) {
+        try(Connection conn = getConnection()) {
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 estudianteToParams(pstmt, estudiante);
                 return pstmt.executeUpdate() > 0;
@@ -182,7 +159,7 @@ public class EstudianteSqlDao implements Crud<Estudiante> {
     @Override
     public boolean update(Long oldId, Long newId) throws DataAccessException {
         String sqlString = "UPDATE Estudiante SET id_estudiante = ? WHERE id_estudiante = ?";
-        try(Connection conn = cp.getConnection();) {
+        try(Connection conn = getConnection()) {
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 pstmt.setLong(1, oldId);
                 pstmt.setLong(2, newId);

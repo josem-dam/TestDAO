@@ -3,8 +3,7 @@ package edu.acceso.test_dao.modelo;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 
-import edu.acceso.test_dao.backend.core.Entity;
-
+import edu.acceso.sqlutils.crud.Entity;
 
 /**
  * Modela un estudiante.

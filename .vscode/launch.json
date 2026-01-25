@@ -3,7 +3,7 @@
     "configurations": [
         {
             "type": "java",
-            "name": "Examen 3 (JAXP)",
+            "name": "Ejecución simple",
             "request": "launch",
             "mainClass": "edu.acceso.test_dao.Main"
         }
