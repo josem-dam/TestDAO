@@ -92,7 +92,7 @@
         <dependency>
             <groupId>com.github.sio2sio2</groupId>
             <artifactId>sqlutils</artifactId>
-            <version>v2.6.3</version>
+            <version>v2.6.4</version>
         </dependency>
     </dependencies>
 </project>
