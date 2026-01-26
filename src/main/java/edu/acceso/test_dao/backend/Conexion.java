@@ -2,10 +2,9 @@ package edu.acceso.test_dao.backend;
 
 import java.sql.Connection;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import javax.sql.DataSource;
 
 import edu.acceso.sqlutils.ConnectionPool;
 import edu.acceso.sqlutils.errors.DataAccessException;
@@ -17,7 +16,8 @@ import edu.acceso.sqlutils.tx.TransactionManager.TransactionableR;
  * Gestiona las conexiones a la base de datos.
  * Utiliza un patrón Multiton para manejar las conexiones basadas en claves únicas.
  * y utiliza de forma práctica {@link ConnectionPool} y {@link TransactionManager}.
- * La clase maneja con seguridad mútiples conexiones concurrentes.
+ * La clase maneja con seguridad mútiples conexiones concurrentes, por lo que
+ * resuelve un escenario bastante más amplio que el de este ejemplo.
  */
 public class Conexion implements AutoCloseable {
 
@@ -35,7 +35,7 @@ public class Conexion implements AutoCloseable {
      * @param password La contraseña para la base de datos.
      */
     private Conexion(String key, String dbUrl, String user, String password) {
-        cp = ConnectionPool.getInstance(dbUrl, user, password);
+        cp = ConnectionPool.create(key, dbUrl, user, password);
         tm = TransactionManager.create(key, cp.getDataSource());
     }
 
@@ -49,10 +49,18 @@ public class Conexion implements AutoCloseable {
      * @throws IllegalStateException Si ya existe una conexión para la clave dada.
      */
     public static Conexion create(String key, String dbUrl, String user, String password) {
-        return instances.compute(key, (k, value) -> {
-            if(value != null) throw new IllegalStateException("Ya existe una conexión para la clave %s".formatted(k));
-            return new Conexion(k, dbUrl, user, password);
-        });
+        Objects.requireNonNull(key, "La clave no puede ser nula.");
+
+        if(instances.containsKey(key)) throw new IllegalStateException("Ya existe una conexión para la clave %s".formatted(key));
+
+        Conexion instance = new Conexion(key, dbUrl, user, password);
+        Conexion previa = instances.putIfAbsent(key, instance);
+        if(previa != null) {
+            instance.close();
+            throw new IllegalStateException("Ya existe una conexión para la clave %s".formatted(key));
+        }
+
+        return instance;
     }
 
     /**
@@ -62,9 +70,16 @@ public class Conexion implements AutoCloseable {
      * @throws IllegalStateException Si no existe una conexión para la clave dada.
      */
     public static Conexion get(String key) {
+        Objects.requireNonNull(key, "La clave no puede ser nula.");
+
         Conexion instance = instances.get(key);
         if (instance == null) throw new IllegalStateException("No existe una conexión para la clave %s".formatted(key));
-        return instance;
+
+        if(instance.isOpen()) return instance;
+        else {
+            instances.remove(key, instance);
+            throw new IllegalStateException("La conexión solicitada no existe.");
+        }
     }
 
     /**
@@ -72,7 +87,7 @@ public class Conexion implements AutoCloseable {
      * @return true si la conexión está abierta, false si está cerrada.
      */
     public boolean isOpen() {
-        return !closed.get();
+        return !closed.get() && cp.isOpen();
     }
 
     @Override
@@ -81,6 +96,17 @@ public class Conexion implements AutoCloseable {
             instances.remove(tm.getKey(), this);
             cp.close();
         }
+    }
+
+    /**
+     * Obtiene una conexión SQL asociada a la transacción actual.
+     * @return Una conexión SQL válida.
+     * @throws IllegalStateException Si no hay transacción activa o la conexión está cerrada.
+     */
+    public Connection getConnection() {
+        if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
+        if(!tm.isActive()) throw new IllegalStateException("No hay una transacción abierta.");
+        return tm.getConnection();
     }
 
     /**
