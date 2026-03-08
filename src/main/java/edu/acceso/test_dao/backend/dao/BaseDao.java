@@ -2,19 +2,31 @@ package edu.acceso.test_dao.backend.dao;
 
 import java.sql.Connection;
 
-import edu.acceso.sqlutils.crud.Entity;
+import edu.acceso.sqlutils.orm.minimal.Entity;
+import edu.acceso.sqlutils.tx.LoggingManager;
 import edu.acceso.test_dao.backend.Conexion;
-import edu.acceso.test_dao.backend.Crud;
 
 public abstract class BaseDao<T extends Entity> implements Crud<T> {
 
-    protected final String key;
+    private final Conexion cx;
 
-    public BaseDao(String key) {
-        this.key = key;
+    protected BaseDao(String key) {
+        cx = Conexion.get(key);
     }
 
+    /**
+     * Obtiene el {@link LoggingManager} asociado a la conexión actual.
+     * @return El gestor de logging solicitado.
+     */
+    public LoggingManager getLoggingManager() {
+        return cx.getLoggingManager();
+    }
+
+    /**
+     * Obtiene la conexión asociada a la transacción actual.
+     * @return La conexión solicitada.
+     */
     public Connection getConnection() {
-        return Conexion.get(key).getConnection();
+        return cx.getConnection();
     }
 }

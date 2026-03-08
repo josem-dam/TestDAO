@@ -1,13 +1,18 @@
 package edu.acceso.test_dao.backend;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import edu.acceso.sqlutils.ConnectionPool;
+import edu.acceso.sqlutils.SqlUtils;
 import edu.acceso.sqlutils.errors.DataAccessException;
+import edu.acceso.sqlutils.tx.LoggingManager;
 import edu.acceso.sqlutils.tx.TransactionManager;
 import edu.acceso.sqlutils.tx.TransactionManager.Transactionable;
 import edu.acceso.sqlutils.tx.TransactionManager.TransactionableR;
@@ -24,7 +29,6 @@ public class Conexion implements AutoCloseable {
     private static final Map<String, Conexion> instances = new ConcurrentHashMap<>(); 
 
     private final ConnectionPool cp;
-    private final TransactionManager tm;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     /**
@@ -36,7 +40,10 @@ public class Conexion implements AutoCloseable {
      */
     private Conexion(String key, String dbUrl, String user, String password) {
         cp = ConnectionPool.create(key, dbUrl, user, password);
-        tm = TransactionManager.create(key, cp.getDataSource());
+        // Iniciamos el gestor de transacciones con un gestor de logs.
+        cp.initTransactionManager(Map.of(
+            LoggingManager.KEY, new LoggingManager()
+        ));
     }
 
     /**
@@ -83,6 +90,30 @@ public class Conexion implements AutoCloseable {
     }
 
     /**
+     * Inicializa la base de datos con el esquema dado. Si la base de datos ya está inicializada, no hace nada.
+     * @param esquema Un InputStream con el esquema SQL para inicializar la base de datos.
+     * @return La propia instancia de Conexion, para permitir encadenar llamadas.
+     * @throws DataAccessException Si hubo algún problema en el acceso a los datos durante la inicialización.
+     */
+    public Conexion initialize(InputStream esquema) throws DataAccessException {
+        transaction(ctxt -> {
+            Connection conn = ctxt.connection();
+
+            // Si la base de datos ya está inicializada, no hacemos nada.
+            if(SqlUtils.isDatabaseInitialized(conn)) return;
+
+            try {
+                SqlUtils.executeSQL(conn, esquema);
+            } catch(SQLException e) {
+                throw new DataAccessException("Error al crear el esquema en la base de datos", e);
+            } catch(IOException e) {
+                throw new RuntimeException("Error al intentar leer el esquema", e);
+            }
+        });         
+        return this;
+    }
+
+    /**
      * Verifica si la conexión está abierta.
      * @return true si la conexión está abierta, false si está cerrada.
      */
@@ -93,20 +124,9 @@ public class Conexion implements AutoCloseable {
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            instances.remove(tm.getKey(), this);
+            instances.remove(cp.getKey(), this);
             cp.close();
         }
-    }
-
-    /**
-     * Obtiene una conexión SQL asociada a la transacción actual.
-     * @return Una conexión SQL válida.
-     * @throws IllegalStateException Si no hay transacción activa o la conexión está cerrada.
-     */
-    public Connection getConnection() {
-        if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
-        if(!tm.isActive()) throw new IllegalStateException("No hay una transacción abierta.");
-        return tm.getConnection();
     }
 
     /**
@@ -118,7 +138,7 @@ public class Conexion implements AutoCloseable {
      */
     public <T> T transactionR(TransactionableR<T> operations) throws DataAccessException {
         if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
-        return tm.transaction(operations);
+        return cp.getTransactionManager().transaction(operations);
     }
 
     /**
@@ -128,6 +148,21 @@ public class Conexion implements AutoCloseable {
      */
     public void transaction(Transactionable operations) throws DataAccessException {
         if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
-        tm.transaction(operations);
+        cp.getTransactionManager().transaction(operations);
+    }
+
+    /**
+     * Obtiene la conexión asociada a la transacción actual.
+     * @return La conexión solicitada.
+     * @throws IllegalStateException Si no hay ninguna transacción activa.
+     */
+    public Connection getConnection() {
+        if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
+        return cp.getTransactionManager().getConnection();
+    }
+
+    public LoggingManager getLoggingManager() {
+        if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
+        return cp.getTransactionManager().getListener(LoggingManager.KEY, LoggingManager.class);
     }
 }

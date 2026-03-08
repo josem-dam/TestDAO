@@ -1,11 +1,11 @@
-package edu.acceso.test_dao.backend;
+package edu.acceso.test_dao.backend.dao;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-import edu.acceso.sqlutils.crud.Entity;
 import edu.acceso.sqlutils.errors.DataAccessException;
+import edu.acceso.sqlutils.orm.minimal.Entity;
 
 /**
  * Interfaz genérica para operaciones CRUD (Crear, Leer, Actualizar, Borrar)
@@ -31,18 +31,16 @@ public interface Crud<T extends Entity> {
     /**
      * Borra una entidad con un determinado identificador.
      * @param id Identificador de la entidad.
-     * @return true, si se encontró la entidad y se borró.
      * @throws DataAccessException Si hubo algún problema en el acceso a los datos.
      */
-    public boolean delete(Long id) throws DataAccessException;
+    public void delete(Long id) throws DataAccessException;
     /**
      * Borra una entidad.
      * @param obj La entidad que se quiere borrar.
-     * @return true, si la entidad existía y se borro.
      * @throws DataAccessException Si hubo algún problema en el acceso a los datos.
      */
-    default boolean delete(T obj) throws DataAccessException {
-        return delete(obj.getId());
+    default void delete(T obj) throws DataAccessException {
+        delete(obj.getId());
     }
 
     /**
@@ -71,26 +69,23 @@ public interface Crud<T extends Entity> {
     /**
      * Actualiza los campos de una entidad cuyo identificador no ha cambiado.
      * @param obj La entidad con los valores actualizados.
-     * @return true, si la entidad existía y se pudo actualizar.
      * @throws DataAccessException Si hubo algún problema en el acceso.
      */
-    public boolean update(T obj) throws DataAccessException;
+    public void update(T obj) throws DataAccessException;
     /**
      * Actualiza el identificador de una entidad.
      * @param oldId El valor antiguo del identificador.
      * @param newId El nuevo valor de identificador.
-     * @return true, si la entidad existía y se pudo actualizar.
      * @throws DataAccessException Si hubo algún problema en el acceso.
      */
-    public boolean update(Long oldId, Long newId) throws DataAccessException;
+    public void update(Long oldId, Long newId) throws DataAccessException;
     /**
      * Actualiza el identificador de una entidad.
      * @param obj La entidad con el identificador sin actualizar. 
      * @param newId El nuevo valor de identificador.
-     * @return true, si la entidad existía y se pudo actualizar.
      * @throws DataAccessException Si hubo algún problema en el acceso.
      */
-    default boolean update(T obj, Long newId) throws DataAccessException {
-        return update(obj.getId(), newId);
+    default void update(T obj, Long newId) throws DataAccessException {
+        update(obj.getId(), newId);
     }
 }
