@@ -1,11 +1,11 @@
-package edu.acceso.test_dao.backend.dao;
+package edu.acceso.test_dao.persistence.dao;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
 import edu.acceso.sqlutils.errors.DataAccessException;
-import edu.acceso.sqlutils.orm.minimal.Entity;
+import edu.acceso.test_dao.modelo.Entity;
 
 /**
  * Interfaz genérica para operaciones CRUD (Crear, Leer, Actualizar, Borrar)

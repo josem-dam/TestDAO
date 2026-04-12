@@ -1,4 +1,4 @@
-package edu.acceso.test_dao.backend.dao;
+package edu.acceso.test_dao.persistence.dao;
 
 import java.sql.Connection;
 import java.sql.Date;
@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
 
 import edu.acceso.sqlutils.errors.DataAccessException;
-import edu.acceso.sqlutils.tx.LoggingManager;
+import edu.acceso.sqlutils.tx.event.LoggingManager;
 import edu.acceso.test_dao.modelo.Centro;
 import edu.acceso.test_dao.modelo.Estudiante;
 
@@ -93,7 +93,7 @@ public class EstudianteSqlDao extends BaseDao<Estudiante> {
             }
         }
         catch(SQLException e) {
-            throw new DataAccessException("Imposible obtener el estudiante", e);
+            throw new DataAccessException("Imposible obtener el estudiante: %s".formatted(e.getMessage()), e);
         }
     }
 
@@ -117,7 +117,7 @@ public class EstudianteSqlDao extends BaseDao<Estudiante> {
             }
         }
         catch(SQLException e) {
-            throw new DataAccessException("Imposible obtener el listado de estudiantes", e);
+            throw new DataAccessException("Imposible obtener el listado de estudiantes: %s".formatted(e.getMessage()), e);
         }
     }
 
@@ -141,7 +141,7 @@ public class EstudianteSqlDao extends BaseDao<Estudiante> {
             }
         }
         catch(SQLException e) {
-            throw new DataAccessException("Imposible borrar el estudiante %d".formatted(id), e);
+            throw new DataAccessException("Imposible borrar el estudiante %d: %s".formatted(id, e.getMessage()), e);
         }
     }
 
@@ -166,7 +166,7 @@ public class EstudianteSqlDao extends BaseDao<Estudiante> {
             }
         }
         catch(SQLException e) {
-            throw new DataAccessException("Imposible agregar el estudiante con ID=%d".formatted(estudiante.getId()), e);
+            throw new DataAccessException("Imposible agregar el estudiante con ID=%d: %s".formatted(estudiante.getId(), e.getMessage()), e);
         }
     }
 
@@ -191,7 +191,7 @@ public class EstudianteSqlDao extends BaseDao<Estudiante> {
             }
         }
         catch(SQLException e) {
-            throw new DataAccessException("Imposible actualizar el estudiante con ID=%d".formatted(estudiante.getId()), e);
+            throw new DataAccessException("Imposible actualizar el estudiante con ID=%d: %s".formatted(estudiante.getId(), e.getMessage()), e);
         }
     }
 
@@ -217,7 +217,7 @@ public class EstudianteSqlDao extends BaseDao<Estudiante> {
             }
         }
         catch(SQLException e) {
-            throw new DataAccessException("Imposible actualizar el identificador del estudiante", e);
+            throw new DataAccessException("Imposible actualizar el identificador del estudiante: %s".formatted(e.getMessage()), e);
         }
     }
 }

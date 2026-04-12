@@ -89,11 +89,17 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Tiene implementados DataAccessException, Entity, TransactionManager y ConnectionPool -->
         <dependency>
-            <groupId>com.github.sio2sio2</groupId>
-            <artifactId>sqlutils</artifactId>
-            <version>3.8.1</version>
+            <groupId>com.github.sio2sio2.sqlutils</groupId>
+            <artifactId>sqlutils-jdbc</artifactId>
+            <version>4.2.0</version>
+        </dependency>
+
+        <!-- Pool de conexiones con HikariCP -->
+        <dependency>
+            <groupId>com.github.sio2sio2.sqlutils</groupId>
+            <artifactId>sqlutils-hikaricp</artifactId>
+            <version>4.2.0</version>
         </dependency>
     </dependencies>
 </project>

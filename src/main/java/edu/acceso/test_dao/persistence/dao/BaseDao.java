@@ -1,10 +1,10 @@
-package edu.acceso.test_dao.backend.dao;
+package edu.acceso.test_dao.persistence.dao;
 
 import java.sql.Connection;
 
-import edu.acceso.sqlutils.orm.minimal.Entity;
-import edu.acceso.sqlutils.tx.LoggingManager;
-import edu.acceso.test_dao.backend.Conexion;
+import edu.acceso.sqlutils.tx.event.LoggingManager;
+import edu.acceso.test_dao.modelo.Entity;
+import edu.acceso.test_dao.persistence.Conexion;
 
 public abstract class BaseDao<T extends Entity> implements Crud<T> {
 

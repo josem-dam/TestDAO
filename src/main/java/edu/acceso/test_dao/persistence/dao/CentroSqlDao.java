@@ -1,4 +1,4 @@
-package edu.acceso.test_dao.backend.dao;
+package edu.acceso.test_dao.persistence.dao;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
 
 import edu.acceso.sqlutils.errors.DataAccessException;
-import edu.acceso.sqlutils.tx.LoggingManager;
+import edu.acceso.sqlutils.tx.event.LoggingManager;
 import edu.acceso.test_dao.modelo.Centro;
 import edu.acceso.test_dao.modelo.Centro.Titularidad;
 
@@ -79,7 +79,7 @@ public class CentroSqlDao extends BaseDao<Centro> {
             }
         }
         catch(SQLException e) {
-            throw new DataAccessException("Imposible obtener el centro", e);
+            throw new DataAccessException("Imposible obtener el centro: %s".formatted(e.getMessage()), e);
         }
     }
 
@@ -100,7 +100,7 @@ public class CentroSqlDao extends BaseDao<Centro> {
             }
         }
         catch(SQLException e) {
-            throw new DataAccessException("Imposible obtener el listado de centros", e);
+            throw new DataAccessException("Imposible obtener el listado de centros: %s".formatted(e.getMessage()), e);
         }
     }
 
@@ -125,7 +125,7 @@ public class CentroSqlDao extends BaseDao<Centro> {
             }
         }
         catch(SQLException e) {
-            throw new DataAccessException("Imposible borrar el centro con ID=%d".formatted(id), e);
+            throw new DataAccessException("Imposible borrar el centro con ID=%d: %s".formatted(id, e.getMessage()), e);
         }
     }
 
@@ -150,7 +150,7 @@ public class CentroSqlDao extends BaseDao<Centro> {
             }
         }
         catch(SQLException e) {
-            throw new DataAccessException("Imposible agregar el centro con ID=%d".formatted(centro.getId()), e);
+            throw new DataAccessException("Imposible agregar el centro con ID=%d: %s".formatted(centro.getId(), e.getMessage()), e);
         }
     }
 
@@ -175,7 +175,7 @@ public class CentroSqlDao extends BaseDao<Centro> {
             }
         }
         catch(SQLException e) {
-            throw new DataAccessException("Imposible actualizar el centro", e);
+            throw new DataAccessException("Imposible actualizar el centro: %s".formatted(e.getMessage()), e);
         }
     }
 
@@ -201,7 +201,7 @@ public class CentroSqlDao extends BaseDao<Centro> {
             }
         }
         catch(SQLException e) {
-            throw new DataAccessException("Imposible actualizar el identificador del centro", e);
+            throw new DataAccessException("Imposible actualizar el identificador del centro: %s".formatted(e.getMessage()), e);
         }
     }
 }

@@ -1,4 +1,4 @@
-package edu.acceso.test_dao.backend;
+package edu.acceso.test_dao.persistence;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,18 +9,22 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import edu.acceso.sqlutils.ConnectionPool;
-import edu.acceso.sqlutils.SqlUtils;
 import edu.acceso.sqlutils.errors.DataAccessException;
-import edu.acceso.sqlutils.tx.LoggingManager;
-import edu.acceso.sqlutils.tx.TransactionManager;
-import edu.acceso.sqlutils.tx.TransactionManager.Transactionable;
-import edu.acceso.sqlutils.tx.TransactionManager.TransactionableR;
+import edu.acceso.sqlutils.jdbc.JdbcConnection;
+import edu.acceso.sqlutils.jdbc.SqlUtils;
+import edu.acceso.sqlutils.jdbc.tx.TransactionManager;
+import edu.acceso.sqlutils.tx.Transactionable;
+import edu.acceso.sqlutils.tx.TransactionableR;
+import edu.acceso.sqlutils.tx.event.LoggingManager;
+import edu.acceso.test_dao.modelo.Entity;
+import edu.acceso.test_dao.persistence.dao.CentroSqlDao;
+import edu.acceso.test_dao.persistence.dao.Crud;
+import edu.acceso.test_dao.persistence.dao.EstudianteSqlDao;
 
 /**
  * Gestiona las conexiones a la base de datos.
  * Utiliza un patrón Multiton para manejar las conexiones basadas en claves únicas.
- * y utiliza de forma práctica {@link ConnectionPool} y {@link TransactionManager}.
+ * y utiliza de forma práctica {@link JdbcConnection} y {@link TransactionManager}.
  * La clase maneja con seguridad mútiples conexiones concurrentes, por lo que
  * resuelve un escenario bastante más amplio que el de este ejemplo.
  */
@@ -28,7 +32,7 @@ public class Conexion implements AutoCloseable {
 
     private static final Map<String, Conexion> instances = new ConcurrentHashMap<>(); 
 
-    private final ConnectionPool cp;
+    private final JdbcConnection jc;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     /**
@@ -39,11 +43,9 @@ public class Conexion implements AutoCloseable {
      * @param password La contraseña para la base de datos.
      */
     private Conexion(String key, String dbUrl, String user, String password) {
-        cp = ConnectionPool.create(key, dbUrl, user, password);
-        // Iniciamos el gestor de transacciones con un gestor de logs.
-        cp.initTransactionManager(Map.of(
-            LoggingManager.KEY, new LoggingManager()
-        ));
+        // Conector con gestor de transacciones y logging integrado
+        jc = JdbcConnection.create(key, dbUrl, user, password)
+            .withTransactionManager(Map.of(LoggingManager.KEY, new LoggingManager()));
     }
 
     /**
@@ -97,10 +99,10 @@ public class Conexion implements AutoCloseable {
      */
     public Conexion initialize(InputStream esquema) throws DataAccessException {
         transaction(ctxt -> {
-            Connection conn = ctxt.connection();
+            Connection conn = ctxt.handle();
 
             // Si la base de datos ya está inicializada, no hacemos nada.
-            if(SqlUtils.isDatabaseInitialized(conn)) return;
+            if(SqlUtils.isDatabaseEmpty(conn)) return;
 
             try {
                 SqlUtils.executeSQL(conn, esquema);
@@ -118,14 +120,14 @@ public class Conexion implements AutoCloseable {
      * @return true si la conexión está abierta, false si está cerrada.
      */
     public boolean isOpen() {
-        return !closed.get() && cp.isOpen();
+        return !closed.get() && jc.isOpen();
     }
 
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            instances.remove(cp.getKey(), this);
-            cp.close();
+            instances.remove(jc.getKey(), this);
+            jc.close();
         }
     }
 
@@ -136,9 +138,9 @@ public class Conexion implements AutoCloseable {
      * @return El resultado de la transacción.
      * @throws DataAccessException Si hubo algún problema en el acceso a los datos.
      */
-    public <T> T transactionR(TransactionableR<T> operations) throws DataAccessException {
+    public <T> T transactionR(TransactionableR<Connection, T> operations) throws DataAccessException {
         if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
-        return cp.getTransactionManager().transaction(operations);
+        return jc.getTransactionManager().transaction(operations);
     }
 
     /**
@@ -146,9 +148,9 @@ public class Conexion implements AutoCloseable {
      * @param operations Las operaciones a ejecutar dentro de la transacción.
      * @throws DataAccessException Si hubo algún problema en el acceso a los datos.
      */
-    public void transaction(Transactionable operations) throws DataAccessException {
+    public void transaction(Transactionable<Connection> operations) throws DataAccessException {
         if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
-        cp.getTransactionManager().transaction(operations);
+        jc.getTransactionManager().transaction(operations);
     }
 
     /**
@@ -158,11 +160,26 @@ public class Conexion implements AutoCloseable {
      */
     public Connection getConnection() {
         if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
-        return cp.getTransactionManager().getConnection();
+        return jc.getTransactionManager().getHandle();
     }
 
     public LoggingManager getLoggingManager() {
         if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
-        return cp.getTransactionManager().getListener(LoggingManager.KEY, LoggingManager.class);
+        return jc.getTransactionManager().getListener(LoggingManager.KEY, LoggingManager.class);
+    }
+
+    /**
+     * Obtiene un DAO para la clase de entidad dada.
+     * @param <E> El tipo de entidad para el que se solicita el DAO.
+     * @param clazz La clase de entidad para la que se solicita el DAO.
+     * @return El DAO solicitado.
+     */
+    @SuppressWarnings("unchecked")
+    public <E extends Entity> Crud<E> getDao(Class<E> clazz) {
+        return switch(clazz.getSimpleName()) {
+            case "Centro" -> (Crud<E>) new CentroSqlDao(jc.getKey());
+            case "Estudiante" -> (Crud<E>) new EstudianteSqlDao(jc.getKey());
+            default -> throw new IllegalArgumentException("No se ha definido un DAO para la clase %s".formatted(clazz.getName()));
+        };
     }
 }
