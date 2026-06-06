@@ -20,21 +20,24 @@ import edu.acceso.sqlutils.errors.DataAccessException;
 import edu.acceso.sqlutils.tx.event.LoggingManager;
 import edu.acceso.test_dao.modelo.Centro;
 import edu.acceso.test_dao.modelo.Estudiante;
+import edu.acceso.test_dao.persistence.Conexion;
 
 /**
  * Implementación de {@link Crud} para la entidad {@link Estudiante} usando SQL.
  * Esta clase proporciona métodos para realizar operaciones CRUD sobre estudiantes
  * en una base de datos relacional.
  */
-public class EstudianteSqlDao extends BaseDao<Estudiante> {
+public class EstudianteSqlDao implements Crud<Estudiante> {
     private static final Logger logger = LoggerFactory.getLogger(CentroSqlDao.class);
+
+    private final Conexion cx;
 
     /**
      * Constructor que inicializa el proveedor de conexiones con una conexión existente.
      * @param key La clave de la conexión a usar.
      */
     public EstudianteSqlDao(String key) {
-        super(key);
+        cx = Conexion.get(key);
     }
 
     /**
@@ -81,7 +84,9 @@ public class EstudianteSqlDao extends BaseDao<Estudiante> {
             WHERE e.id = ?
             """;
 
-        try(Connection conn = getConnection()) {
+        return cx.transactionR(ctxt -> {
+            Connection conn = ctxt.handle();
+
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 pstmt.setLong(1, id);
                 try(ResultSet rs = pstmt.executeQuery()) {
@@ -91,10 +96,10 @@ public class EstudianteSqlDao extends BaseDao<Estudiante> {
                     return Optional.ofNullable(estudiante);
                 }
             }
-        }
-        catch(SQLException e) {
-            throw new DataAccessException("Imposible obtener el estudiante: %s".formatted(e.getMessage()), e);
-        }
+            catch(SQLException e) {
+                throw new DataAccessException("Imposible obtener el estudiante: %s".formatted(e.getMessage()), e);
+            }
+        });
     }
 
     @Override
@@ -103,9 +108,11 @@ public class EstudianteSqlDao extends BaseDao<Estudiante> {
             SELECT e.*, c.id_centro AS c_id, c.nombre AS c_nombre, c.titularidad AS c_titularidad
             FROM Centro c JOIN Estudiante e ON e.centro = c.id
             """;
-        List<Estudiante> estudiantes = new ArrayList<>();
 
-        try(Connection conn = getConnection()) {
+        return cx.transactionR(ctxt -> {
+            Connection conn = ctxt.handle();
+
+            List<Estudiante> estudiantes = new ArrayList<>();
             try(Statement pstmt = conn.createStatement()) {
                 try(ResultSet rs = pstmt.executeQuery(sqlString)) {
                     while(rs.next()) {
@@ -115,17 +122,16 @@ public class EstudianteSqlDao extends BaseDao<Estudiante> {
                     return estudiantes;
                 }
             }
-        }
-        catch(SQLException e) {
-            throw new DataAccessException("Imposible obtener el listado de estudiantes: %s".formatted(e.getMessage()), e);
-        }
+        });
     }
 
     public void delete(Long id) throws DataAccessException {
         String sqlString = "DELETE FROM Estudiante WHERE id = ?";
-        LoggingManager lm = getLoggingManager();
 
-        try(Connection conn = getConnection()) {
+        cx.transaction(ctxt -> {
+            Connection conn = ctxt.handle();
+            LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
+
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 pstmt.setLong(1, id);
                 boolean deleted = pstmt.executeUpdate() > 0;
@@ -139,18 +145,17 @@ public class EstudianteSqlDao extends BaseDao<Estudiante> {
                 }
                 else logger.trace("Estudiante con ID={} no encontrado", id);
             }
-        }
-        catch(SQLException e) {
-            throw new DataAccessException("Imposible borrar el estudiante %d: %s".formatted(id, e.getMessage()), e);
-        }
+        });
     }
 
     @Override
     public void insert(Estudiante estudiante) throws DataAccessException {
         String sqlString = "INSERT INTO Estudiante (nombre, nacimiento, centro, id) VALUES (?, ?, ?, ?)";
-        LoggingManager lm = getLoggingManager();
 
-        try(Connection conn = getConnection()) {
+        cx.transaction(ctxt -> {
+            Connection conn = ctxt.handle();
+             LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
+
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString, Statement.RETURN_GENERATED_KEYS)) {
                 estudianteToParams(pstmt, estudiante);
                 pstmt.executeUpdate();
@@ -164,18 +169,20 @@ public class EstudianteSqlDao extends BaseDao<Estudiante> {
                     "Trasacción fallida: Estudiante con ID=%d no se llega a agregar".formatted(estudiante.getId())
                 );
             }
-        }
-        catch(SQLException e) {
-            throw new DataAccessException("Imposible agregar el estudiante con ID=%d: %s".formatted(estudiante.getId(), e.getMessage()), e);
-        }
+            catch(SQLException e) {
+                throw new DataAccessException("Imposible agregar el estudiante con ID=%d: %s".formatted(estudiante.getId(), e.getMessage()), e);
+            }
+        });
     }
 
     @Override
     public void update(Estudiante estudiante) throws DataAccessException {
         String sqlString = "UPDATE Estudiante SET nombre = ?, nacimiento = ?, centro = ? WHERE id = ?";
-        LoggingManager lm = getLoggingManager();
 
-        try(Connection conn = getConnection()) {
+        cx.transaction(ctxt -> {
+            Connection conn = ctxt.handle();
+             LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
+
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 estudianteToParams(pstmt, estudiante);
                 boolean updated = pstmt.executeUpdate() > 0;
@@ -189,18 +196,17 @@ public class EstudianteSqlDao extends BaseDao<Estudiante> {
                 }
                 else logger.trace("Estudiante con ID={} no encontrado", estudiante.getId());
             }
-        }
-        catch(SQLException e) {
-            throw new DataAccessException("Imposible actualizar el estudiante con ID=%d: %s".formatted(estudiante.getId(), e.getMessage()), e);
-        }
+        });
     }
 
     @Override
     public void update(Long oldId, Long newId) throws DataAccessException {
         String sqlString = "UPDATE Estudiante SET id_estudiante = ? WHERE id_estudiante = ?";
-        LoggingManager lm = getLoggingManager();
 
-        try(Connection conn = getConnection()) {
+        cx.transaction(ctxt -> {
+            Connection conn = ctxt.handle();
+             LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
+
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 pstmt.setLong(1, oldId);
                 pstmt.setLong(2, newId);
@@ -215,9 +221,6 @@ public class EstudianteSqlDao extends BaseDao<Estudiante> {
                 }
                 else logger.trace("Estudiante con ID={} no encontrado", oldId);
             }
-        }
-        catch(SQLException e) {
-            throw new DataAccessException("Imposible actualizar el identificador del estudiante: %s".formatted(e.getMessage()), e);
-        }
+        });
     }
 }
