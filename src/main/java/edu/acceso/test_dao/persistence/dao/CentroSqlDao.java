@@ -18,21 +18,24 @@ import edu.acceso.sqlutils.errors.DataAccessException;
 import edu.acceso.sqlutils.tx.event.LoggingManager;
 import edu.acceso.test_dao.modelo.Centro;
 import edu.acceso.test_dao.modelo.Centro.Titularidad;
+import edu.acceso.test_dao.persistence.Conexion;
 
 /**
  * Implementación de {@link Crud} para la entidad {@link Centro} usando SQL.
  * Esta clase proporciona métodos para realizar operaciones CRUD sobre centros
  * en una base de datos relacional.
  */
-public class CentroSqlDao extends BaseDao<Centro> {
+public class CentroSqlDao implements Crud<Centro> {
     private static final Logger logger = LoggerFactory.getLogger(CentroSqlDao.class);
+
+    private final Conexion cx;
 
     /**
      * Constructor que inicializa el proveedor de conexiones con una conexión existente.
      * @param key La clave de la conexión a usar.
      */
     public CentroSqlDao(String key) {
-        super(key);
+        cx = Conexion.get(key);
     }
 
     /**
@@ -67,7 +70,9 @@ public class CentroSqlDao extends BaseDao<Centro> {
     public Optional<Centro> get(Long id) throws DataAccessException {
         String sqlString = "SELECT * FROM Centro WHERE id = ?";
 
-        try(Connection conn = getConnection()) {
+        return cx.transactionR(ctxt -> {
+            Connection conn = ctxt.handle();
+
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 pstmt.setLong(1, id);
                 try(ResultSet rs = pstmt.executeQuery()) {
@@ -77,18 +82,20 @@ public class CentroSqlDao extends BaseDao<Centro> {
                     return Optional.ofNullable(centro);
                 }
             }
-        }
-        catch(SQLException e) {
-            throw new DataAccessException("Imposible obtener el centro: %s".formatted(e.getMessage()), e);
-        }
+            catch(SQLException e) {
+                throw new DataAccessException("Imposible obtener el centro: %s".formatted(e.getMessage()), e);
+            }
+        });
     }
 
     @Override
     public List<Centro> get() throws DataAccessException {
         String sqlString = "SELECT * FROM Centro";
-        List<Centro> centros = new ArrayList<>();
 
-        try(Connection conn = getConnection()) {
+        return cx.transactionR(ctxt -> {
+            Connection conn = ctxt.handle();
+
+            List<Centro> centros = new ArrayList<>();
             try(Statement pstmt = conn.createStatement()) {
                 try(ResultSet rs = pstmt.executeQuery(sqlString)) {
                     while(rs.next()) {
@@ -98,18 +105,17 @@ public class CentroSqlDao extends BaseDao<Centro> {
                     return centros;
                 }
             }
-        }
-        catch(SQLException e) {
-            throw new DataAccessException("Imposible obtener el listado de centros: %s".formatted(e.getMessage()), e);
-        }
+        });
     }
 
     @Override
     public void delete(Long id) throws DataAccessException {
         String sqlString = "DELETE FROM Centro WHERE id = ?";
-        LoggingManager lm = getLoggingManager();
 
-        try(Connection conn = getConnection()) {
+        cx.transaction(ctxt -> {
+            Connection conn = ctxt.handle();
+            LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
+
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 pstmt.setLong(1, id);
                 boolean deleted = pstmt.executeUpdate() > 0;
@@ -123,18 +129,17 @@ public class CentroSqlDao extends BaseDao<Centro> {
                 }
                 else logger.trace("Centro con ID={} no encontrado", id);
             }
-        }
-        catch(SQLException e) {
-            throw new DataAccessException("Imposible borrar el centro con ID=%d: %s".formatted(id, e.getMessage()), e);
-        }
+        });
     }
 
     @Override
     public void insert(Centro centro) throws DataAccessException {
         String sqlString = "INSERT INTO Centro (nombre, titularidad, id) VALUES (?, ?, ?)";
-        LoggingManager lm = getLoggingManager();
 
-        try(Connection conn = getConnection()) {
+        cx.transaction(ctxt -> {
+            Connection conn = ctxt.handle();
+            LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
+
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString, Statement.RETURN_GENERATED_KEYS)) {
                 centroToParams(pstmt, centro);
                 pstmt.executeUpdate();
@@ -148,18 +153,17 @@ public class CentroSqlDao extends BaseDao<Centro> {
                     "Trasacción fallida: Centro con ID=%d no se llega a agregar".formatted(centro.getId())
                 );
             }
-        }
-        catch(SQLException e) {
-            throw new DataAccessException("Imposible agregar el centro con ID=%d: %s".formatted(centro.getId(), e.getMessage()), e);
-        }
+        });
     }
 
     @Override
     public void update(Centro centro) throws DataAccessException {
         String sqlString = "UPDATE Centro SET nombre = ?, titularidad = ? WHERE id = ?";
-        LoggingManager lm = getLoggingManager();
 
-        try(Connection conn = getConnection()) {
+        cx.transaction(ctxt -> {
+            Connection conn = ctxt.handle();
+            LoggingManager lm =  ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
+
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 centroToParams(pstmt, centro);
                 boolean updated = pstmt.executeUpdate() > 0;
@@ -173,18 +177,17 @@ public class CentroSqlDao extends BaseDao<Centro> {
                 }
                 else logger.trace("Centro con ID={} no encontrado", centro.getId());
             }
-        }
-        catch(SQLException e) {
-            throw new DataAccessException("Imposible actualizar el centro: %s".formatted(e.getMessage()), e);
-        }
+        });
     }
 
     @Override
     public void update(Long oldId, Long newId) throws DataAccessException {
         String sqlString = "UPDATE Centro SET id_centro = ? WHERE id_centro = ?";
-        LoggingManager lm = getLoggingManager();
 
-        try(Connection conn = getConnection()) {
+        cx.transaction(ctxt -> {
+            Connection conn = ctxt.handle();
+            LoggingManager lm =  ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
+
             try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
                 pstmt.setLong(1, oldId);
                 pstmt.setLong(2, newId);
@@ -199,9 +202,6 @@ public class CentroSqlDao extends BaseDao<Centro> {
                 }
                 else logger.trace("Centro con ID={} no encontrado", oldId);
             }
-        }
-        catch(SQLException e) {
-            throw new DataAccessException("Imposible actualizar el identificador del centro: %s".formatted(e.getMessage()), e);
-        }
+        });
     }
 }

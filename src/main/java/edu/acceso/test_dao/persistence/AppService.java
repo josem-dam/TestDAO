@@ -15,8 +15,12 @@ import edu.acceso.test_dao.modelo.Estudiante;
 public class AppService {
     private final Conexion cx;
 
-    public AppService(Conexion conexion) {
-        this.cx = conexion;
+    /**
+     * Constructor
+     * @param key La clave de la conexión a usar para acceder a la base de datos.
+     */
+    public AppService(String key) {
+        this.cx = Conexion.get(key);
     }
 
     /**
@@ -25,7 +29,7 @@ public class AppService {
      * @throws DataAccessException Si ocurre un error al acceder a los datos.
      */
     public List<Centro> listarCentros() throws DataAccessException {
-        return cx.transactionR(ctxt -> cx.getDao(Centro.class).get());
+        return cx.getDao(Centro.class).get();
     }
 
     /**
@@ -34,7 +38,7 @@ public class AppService {
      * @throws DataAccessException Si ocurre un error al acceder a los datos.
      */
     public void agregarEstudiante(Estudiante estudiante) throws DataAccessException {
-        cx.transaction(ctxt -> cx.getDao(Estudiante.class).insert(estudiante));
+        cx.getDao(Estudiante.class).insert(estudiante);
     }
 
     /**
@@ -43,7 +47,7 @@ public class AppService {
      * @throws DataAccessException Si ocurre un error al acceder a los datos.
      */
     public void modificarCentro(Centro centro) throws DataAccessException {
-        cx.transaction(ctxt -> cx.getDao(Centro.class).update(centro));
+        cx.getDao(Centro.class).update(centro);
     }
 
     /**
@@ -52,7 +56,7 @@ public class AppService {
      * @throws DataAccessException Si ocurre un error al acceder a los datos.
      */
     public void agregarCentro(Centro centro) throws DataAccessException {
-        cx.transaction(ctxt -> cx.getDao(Centro.class).insert(centro));
+        cx.getDao(Centro.class).insert(centro);
     }
 
     public void operacionMultiple() throws DataAccessException {

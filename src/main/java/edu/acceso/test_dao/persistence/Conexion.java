@@ -132,16 +132,6 @@ public class Conexion implements AutoCloseable {
     }
 
     /**
-     * Obtiene el gestor de transacciones asociado a la conexión.
-     * @return El gestor de transacciones solicitado.
-     * @throws IllegalStateException Si la conexión está cerrada.
-     */
-    public TransactionManager getTransactionManager() {
-        if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
-        return jc.getTransactionManager();
-    }
-
-    /**
      * Ejecuta una transacción con resultado.
      * @param <T> El tipo de resultado de la transacción.
      * @param operations Las operaciones a ejecutar dentro de la transacción.

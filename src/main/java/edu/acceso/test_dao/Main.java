@@ -40,7 +40,7 @@ public class Main {
             return;
         }
 
-        AppService service = new AppService(conexion);
+        AppService service = new AppService(KEY);
 
         System.out.println("=== Centros iniciales ===");
         List<Centro> centros = null;
