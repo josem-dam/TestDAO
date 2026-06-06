@@ -102,7 +102,7 @@ public class Conexion implements AutoCloseable {
             Connection conn = ctxt.handle();
 
             // Si la base de datos ya está inicializada, no hacemos nada.
-            if(SqlUtils.isDatabaseEmpty(conn)) return;
+            if(!SqlUtils.isDatabaseEmpty(conn)) return;
 
             try {
                 SqlUtils.executeSQL(conn, esquema);
@@ -132,6 +132,16 @@ public class Conexion implements AutoCloseable {
     }
 
     /**
+     * Obtiene el gestor de transacciones asociado a la conexión.
+     * @return El gestor de transacciones solicitado.
+     * @throws IllegalStateException Si la conexión está cerrada.
+     */
+    public TransactionManager getTransactionManager() {
+        if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
+        return jc.getTransactionManager();
+    }
+
+    /**
      * Ejecuta una transacción con resultado.
      * @param <T> El tipo de resultado de la transacción.
      * @param operations Las operaciones a ejecutar dentro de la transacción.
@@ -151,21 +161,6 @@ public class Conexion implements AutoCloseable {
     public void transaction(Transactionable<Connection> operations) throws DataAccessException {
         if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
         jc.getTransactionManager().transaction(operations);
-    }
-
-    /**
-     * Obtiene la conexión asociada a la transacción actual.
-     * @return La conexión solicitada.
-     * @throws IllegalStateException Si no hay ninguna transacción activa.
-     */
-    public Connection getConnection() {
-        if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
-        return jc.getTransactionManager().getHandle();
-    }
-
-    public LoggingManager getLoggingManager() {
-        if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
-        return jc.getTransactionManager().getListener(LoggingManager.KEY, LoggingManager.class);
     }
 
     /**

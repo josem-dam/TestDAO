@@ -15,7 +15,6 @@ import edu.acceso.test_dao.modelo.Estudiante;
 import edu.acceso.test_dao.modelo.Centro.Titularidad;
 import edu.acceso.test_dao.persistence.AppService;
 import edu.acceso.test_dao.persistence.Conexion;
-import edu.acceso.test_dao.persistence.dao.Crud;
 
 public class Main {
     private static final String db = "jdbc:sqlite:file::memory:?cache=shared";
