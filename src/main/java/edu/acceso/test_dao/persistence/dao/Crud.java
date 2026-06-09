@@ -4,7 +4,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-import edu.acceso.sqlutils.errors.DataAccessException;
 import edu.acceso.test_dao.modelo.Entity;
 
 /**
@@ -20,26 +19,26 @@ public interface Crud<T extends Entity> {
      * @return La entidad requerida.
      * @throws DataAccessException Si hubo algún problema en el acceso a los datos.
      */
-    public Optional<T> get(Long id) throws DataAccessException;
+    public Optional<T> get(Long id);
     /**
      * Obtiene la relación completa de entidades de un tipo.
      * @return Una lista con todas las entidades.
      * @throws DataAccessException Si hubo algún problema en el acceso a los datos.
      */
-    public List<T> get() throws DataAccessException;
+    public List<T> get();
 
     /**
      * Borra una entidad con un determinado identificador.
      * @param id Identificador de la entidad.
      * @throws DataAccessException Si hubo algún problema en el acceso a los datos.
      */
-    public void delete(Long id) throws DataAccessException;
+    public void delete(Long id);
     /**
      * Borra una entidad.
      * @param obj La entidad que se quiere borrar.
      * @throws DataAccessException Si hubo algún problema en el acceso a los datos.
      */
-    default void delete(T obj) throws DataAccessException {
+    default void delete(T obj) {
         delete(obj.getId());
     }
 
@@ -48,13 +47,13 @@ public interface Crud<T extends Entity> {
      * @param obj La entidad que se quiere agregar.
      * @throws DataAccessException Si hubo algún problema en el acceso o ya existía una entidad con ese identificador.
      */
-    public void insert(T obj) throws DataAccessException;
+    public void insert(T obj);
     /**
      * Agrega una multitud de entidades de un determinado tipo a la base de datos.
      * @param objs Las entidades a agregar.
      * @throws DataAccessException Si hubo algún problema en el acceso o ya existía alguna de las entidades.
      */
-    default void insert(Iterable<T> objs) throws DataAccessException {
+    default void insert(Iterable<T> objs) {
         for(T obj: objs) insert(obj);
     }
     /**
@@ -62,7 +61,7 @@ public interface Crud<T extends Entity> {
      * @param objs Las entidades a agregar.
      * @throws DataAccessException Si hubo algún problema en el acceso o ya existía alguna de las entidades.
      */
-    default void insert(T[] objs) throws DataAccessException {
+    default void insert(T[] objs) {
        insert(Arrays.asList(objs));
     }
 
@@ -71,21 +70,21 @@ public interface Crud<T extends Entity> {
      * @param obj La entidad con los valores actualizados.
      * @throws DataAccessException Si hubo algún problema en el acceso.
      */
-    public void update(T obj) throws DataAccessException;
+    public void update(T obj);
     /**
      * Actualiza el identificador de una entidad.
      * @param oldId El valor antiguo del identificador.
      * @param newId El nuevo valor de identificador.
      * @throws DataAccessException Si hubo algún problema en el acceso.
      */
-    public void update(Long oldId, Long newId) throws DataAccessException;
+    public void update(Long oldId, Long newId);
     /**
      * Actualiza el identificador de una entidad.
      * @param obj La entidad con el identificador sin actualizar. 
      * @param newId El nuevo valor de identificador.
      * @throws DataAccessException Si hubo algún problema en el acceso.
      */
-    default void update(T obj, Long newId) throws DataAccessException {
+    default void update(T obj, Long newId) {
         update(obj.getId(), newId);
     }
 }

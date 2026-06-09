@@ -1,6 +1,5 @@
 package edu.acceso.test_dao.persistence.dao;
 
-import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -8,43 +7,50 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.event.Level;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.stereotype.Repository;
 
-import edu.acceso.sqlutils.errors.DataAccessException;
-import edu.acceso.sqlutils.tx.event.LoggingManager;
 import edu.acceso.test_dao.modelo.Centro;
 import edu.acceso.test_dao.modelo.Estudiante;
-import edu.acceso.test_dao.persistence.Conexion;
+import edu.acceso.test_dao.persistence.LoggingManager;
 
 /**
  * Implementación de {@link Crud} para la entidad {@link Estudiante} usando SQL.
  * Esta clase proporciona métodos para realizar operaciones CRUD sobre estudiantes
  * en una base de datos relacional.
  */
+@Repository
 public class EstudianteSqlDao implements Crud<Estudiante> {
     private static final Logger logger = LoggerFactory.getLogger(CentroSqlDao.class);
 
-    private final Conexion cx;
+    private final JdbcTemplate jt;
+    private final ApplicationEventPublisher publisher;
 
     /**
      * Constructor que inicializa el proveedor de conexiones con una conexión existente.
-     * @param key La clave de la conexión a usar.
+     * @param jt El {@link JdbcTemplate} a usar para las operaciones de base de datos.
+     * @param publisher El publicador de eventos de la aplicación.
      */
-    public EstudianteSqlDao(String key) {
-        cx = Conexion.get(key);
+    public EstudianteSqlDao(JdbcTemplate jt, ApplicationEventPublisher publisher) {
+        this.jt = jt;
+        this.publisher = publisher;
     }
 
     /**
      * Convierte un {@link ResultSet} en un objeto {@link Estudiante}.
      *
      * @param rs El {@link ResultSet} que contiene los datos del estudiante.
-     * @param conn Conexión para cargar el centro asociado al estudiante.
+     * @param prefix Prefijo para los nombres de las columnas del estudiante.
+     * @param cPrefix Prefijo para los nombres de las columnas del centro.
      * @return Un objeto {@link Estudiante} con los datos del {@link ResultSet}.
      * @throws SQLException Si ocurre un error al acceder a los datos del {@link ResultSet}.
      */
@@ -77,150 +83,78 @@ public class EstudianteSqlDao implements Crud<Estudiante> {
     }
 
     @Override
-    public Optional<Estudiante> get(Long id) throws DataAccessException {
+    public Optional<Estudiante> get(Long id) {
         String sqlString = """
             SELECT e.*, c.id_centro AS c_id, c.nombre AS c_nombre, c.titularidad AS c_titularidad
             FROM Centro c JOIN Estudiante e ON e.centro = c.id 
             WHERE e.id = ?
             """;
 
-        return cx.transactionR(ctxt -> {
-            Connection conn = ctxt.handle();
+        Estudiante estudiante = null;
 
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
-                pstmt.setLong(1, id);
-                try(ResultSet rs = pstmt.executeQuery()) {
-                    Estudiante estudiante = rs.next() ? resultSetToEstudiante(rs, "", "c_") : null;
-                    if(estudiante == null) logger.trace("Estudiante con ID={} no encontrado", id);
-                    else logger.trace("Estudiante con ID={} encontrado", id);
-                    return Optional.ofNullable(estudiante);
-                }
-            }
-            catch(SQLException e) {
-                throw new DataAccessException("Imposible obtener el estudiante: %s".formatted(e.getMessage()), e);
-            }
-        });
+        try {
+            estudiante = jt.queryForObject(sqlString, (rs, rowNum) -> resultSetToEstudiante(rs, "", "c_"), id);
+            logger.trace("Estudiante con ID={} encontrado: {}", id, estudiante);
+        } catch(EmptyResultDataAccessException e) {
+            logger.trace("Estudiante con ID={} no encontrado", id);
+        }
+        
+        return Optional.ofNullable(estudiante);
     }
 
     @Override
-    public List<Estudiante> get() throws DataAccessException {
+    public List<Estudiante> get() {
         String sqlString = """
             SELECT e.*, c.id_centro AS c_id, c.nombre AS c_nombre, c.titularidad AS c_titularidad
             FROM Centro c JOIN Estudiante e ON e.centro = c.id
             """;
 
-        return cx.transactionR(ctxt -> {
-            Connection conn = ctxt.handle();
-
-            List<Estudiante> estudiantes = new ArrayList<>();
-            try(Statement pstmt = conn.createStatement()) {
-                try(ResultSet rs = pstmt.executeQuery(sqlString)) {
-                    while(rs.next()) {
-                        estudiantes.add(resultSetToEstudiante(rs, "", "c_"));
-                    }
-                    logger.trace("Obtenidos {} estudiantes", estudiantes.size());
-                    return estudiantes;
-                }
-            }
-        });
+        List<Estudiante> estudiantes = jt.query(sqlString, (rs, rowNum) -> resultSetToEstudiante(rs, "", "c_"));
+        logger.trace("{} estudiantes encontrados", estudiantes.size());
+        return estudiantes;
     }
 
-    public void delete(Long id) throws DataAccessException {
+    public void delete(Long id) {
         String sqlString = "DELETE FROM Estudiante WHERE id = ?";
 
-        cx.transaction(ctxt -> {
-            Connection conn = ctxt.handle();
-            LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
-
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
-                pstmt.setLong(1, id);
-                boolean deleted = pstmt.executeUpdate() > 0;
-                if(deleted) {
-                    lm.sendMessage(
-                        getClass(),
-                        Level.DEBUG,
-                        "Estudiante con ID=%d borrado".formatted(id),
-                        "Trasacción fallida: Estudiante con ID=%d no se llega a borrar".formatted(id)
-                    );
-                }
-                else logger.trace("Estudiante con ID={} no encontrado", id);
-            }
-        });
+        boolean deleted = jt.update(sqlString, id) > 0;
+        if(deleted) publisher.publishEvent(new LoggingManager.EventMessage("borrado de estudiante con ID=%d".formatted(id)));
+        else logger.trace("Estudiante con ID={} no encontrado", id);
     }
 
     @Override
-    public void insert(Estudiante estudiante) throws DataAccessException {
+    public void insert(Estudiante estudiante) {
         String sqlString = "INSERT INTO Estudiante (nombre, nacimiento, centro, id) VALUES (?, ?, ?, ?)";
+        KeyHolder keyHolder = new GeneratedKeyHolder();
 
-        cx.transaction(ctxt -> {
-            Connection conn = ctxt.handle();
-             LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
+        jt.update(conn -> {
+            PreparedStatement pstmt = conn.prepareStatement(sqlString, Statement.RETURN_GENERATED_KEYS);
+            estudianteToParams(pstmt, estudiante);
+            return pstmt;
+        }, keyHolder);
 
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString, Statement.RETURN_GENERATED_KEYS)) {
-                estudianteToParams(pstmt, estudiante);
-                pstmt.executeUpdate();
-                try(ResultSet rs = pstmt.getGeneratedKeys())  {
-                    if(rs.next()) estudiante.setId(rs.getLong(1));
-                }
-                lm.sendMessage(
-                    getClass(),
-                    Level.DEBUG,
-                    "Estudiante con ID=%d agregado".formatted(estudiante.getId()),
-                    "Trasacción fallida: Estudiante con ID=%d no se llega a agregar".formatted(estudiante.getId())
-                );
-            }
-            catch(SQLException e) {
-                throw new DataAccessException("Imposible agregar el estudiante con ID=%d: %s".formatted(estudiante.getId(), e.getMessage()), e);
-            }
-        });
+        if(keyHolder.getKey() != null) {
+            estudiante.setId(keyHolder.getKey().longValue());
+            publisher.publishEvent(new LoggingManager.EventMessage("inserción de estudiante con ID=%d".formatted(estudiante.getId())));
+        }
+        else logger.warn("No se pudo obtener el ID generado para el estudiante agregado");
     }
 
     @Override
-    public void update(Estudiante estudiante) throws DataAccessException {
+    public void update(Estudiante estudiante) {
         String sqlString = "UPDATE Estudiante SET nombre = ?, nacimiento = ?, centro = ? WHERE id = ?";
 
-        cx.transaction(ctxt -> {
-            Connection conn = ctxt.handle();
-             LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
-
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
-                estudianteToParams(pstmt, estudiante);
-                boolean updated = pstmt.executeUpdate() > 0;
-                if(updated) {
-                    lm.sendMessage(
-                        getClass(),
-                        Level.DEBUG,
-                        "Estudiante con ID=%d actualizado".formatted(estudiante.getId()),
-                        "Trasacción fallida: Estudiante con ID=%d no se llega a actualizar".formatted(estudiante.getId())
-                    );
-                }
-                else logger.trace("Estudiante con ID={} no encontrado", estudiante.getId());
-            }
-        });
+        boolean updated = jt.update(sqlString, estudiante.getNombre(), estudiante.getNacimiento(), estudiante.getCentro() == null?null:estudiante.getCentro().getId(), estudiante.getId()) > 0;
+        if(updated) publisher.publishEvent(new LoggingManager.EventMessage("actualización de estudiante con ID=%d".formatted(estudiante.getId())));
+        else logger.trace("Estudiante con ID={} no encontrado", estudiante.getId());
     }
 
     @Override
-    public void update(Long oldId, Long newId) throws DataAccessException {
-        String sqlString = "UPDATE Estudiante SET id_estudiante = ? WHERE id_estudiante = ?";
+    public void update(Long oldId, Long newId) {
+        String sqlString = "UPDATE Estudiante SET id = ? WHERE id = ?";
 
-        cx.transaction(ctxt -> {
-            Connection conn = ctxt.handle();
-             LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
-
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
-                pstmt.setLong(1, oldId);
-                pstmt.setLong(2, newId);
-                boolean updated = pstmt.executeUpdate() > 0;
-                if(updated) {
-                    lm.sendMessage(
-                        getClass(),
-                        Level.DEBUG,
-                        "Estudiante con ID=%d actualizado a ID=%d".formatted(oldId, newId),
-                        "Trasacción fallida: Estudiante con ID=%d no se llega a actualizar a ID=%d".formatted(oldId, newId)
-                    );
-                }
-                else logger.trace("Estudiante con ID={} no encontrado", oldId);
-            }
-        });
+        boolean updated = jt.update(sqlString, newId, oldId) > 0;
+        if(updated) publisher.publishEvent(new LoggingManager.EventMessage("actualización del ID del estudiante con ID=%d".formatted(oldId)));
+        else logger.trace("Estudiante con ID={} no encontrado", oldId);
     }
 }
