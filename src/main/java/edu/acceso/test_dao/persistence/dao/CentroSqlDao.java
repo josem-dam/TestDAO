@@ -1,21 +1,14 @@
 package edu.acceso.test_dao.persistence.dao;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
-import java.sql.Types;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.event.Level;
 
 import edu.acceso.sqlutils.errors.DataAccessException;
-import edu.acceso.sqlutils.tx.event.LoggingManager;
 import edu.acceso.test_dao.modelo.Centro;
 import edu.acceso.test_dao.modelo.Centro.Titularidad;
 import edu.acceso.test_dao.persistence.Conexion;
@@ -52,156 +45,39 @@ public class CentroSqlDao implements Crud<Centro> {
         return new Centro(id, nombre, titularidad);
     }
 
-    /**
-     * Establece los parámetros de un {@link PreparedStatement} con los datos de un {@link Centro}.
-     *
-     * @param pstmt El {@link PreparedStatement} donde se establecerán los parámetros.
-     * @param centro El objeto {@link Centro} cuyos datos se usarán para establecer los parámetros.
-     * @throws SQLException Si ocurre un error al establecer los parámetros en el {@link PreparedStatement}.
-     */
-    private static void centroToParams(PreparedStatement pstmt, Centro centro) throws SQLException {
-        pstmt.setString(1, centro.getNombre());
-        pstmt.setString(2, centro.getTitularidad().toString());
-        // En este caso el ID siempre tiene valor, con lo que puede usarse directamente setInt.
-        pstmt.setObject(3, centro.getId(), Types.BIGINT);
-    }
-
     @Override
     public Optional<Centro> get(Long id) throws DataAccessException {
         String sqlString = "SELECT * FROM Centro WHERE id = ?";
-
-        return cx.transactionR(ctxt -> {
-            Connection conn = ctxt.handle();
-
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
-                pstmt.setLong(1, id);
-                try(ResultSet rs = pstmt.executeQuery()) {
-                    Centro centro = rs.next() ? resultSetToCentro(rs, "") : null;
-                    if(centro == null) logger.trace("Centro con ID={} no encontrado", id);
-                    else logger.trace("Centro con ID={} encontrado", id);
-                    return Optional.ofNullable(centro);
-                }
-            }
-            catch(SQLException e) {
-                throw new DataAccessException("Imposible obtener el centro: %s".formatted(e.getMessage()), e);
-            }
-        });
+        return cx.getSqlAssistant().selectOne(sqlString, (rs, num) -> resultSetToCentro(rs, ""), id);
     }
 
     @Override
     public List<Centro> get() throws DataAccessException {
         String sqlString = "SELECT * FROM Centro";
-
-        return cx.transactionR(ctxt -> {
-            Connection conn = ctxt.handle();
-
-            List<Centro> centros = new ArrayList<>();
-            try(Statement pstmt = conn.createStatement()) {
-                try(ResultSet rs = pstmt.executeQuery(sqlString)) {
-                    while(rs.next()) {
-                        centros.add(resultSetToCentro(rs, ""));
-                    }
-                    logger.trace("Obtenidos {} centros", centros.size());
-                    return centros;
-                }
-            }
-        });
+        return cx.getSqlAssistant().select(sqlString, (rs, num) -> resultSetToCentro(rs, ""));
     }
 
     @Override
     public void delete(Long id) throws DataAccessException {
         String sqlString = "DELETE FROM Centro WHERE id = ?";
-
-        cx.transaction(ctxt -> {
-            Connection conn = ctxt.handle();
-            LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
-
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
-                pstmt.setLong(1, id);
-                boolean deleted = pstmt.executeUpdate() > 0;
-                if(deleted) {
-                    lm.sendMessage(
-                        getClass(),
-                        Level.DEBUG,
-                        "Centro con ID=%d borrado".formatted(id),
-                        "Trasacción fallida: Centro con ID=%d no se llega a borrar".formatted(id)
-                    );
-                }
-                else logger.trace("Centro con ID={} no encontrado", id);
-            }
-        });
+        cx.getSqlAssistant().execute(sqlString, id);
     }
 
     @Override
     public void insert(Centro centro) throws DataAccessException {
         String sqlString = "INSERT INTO Centro (nombre, titularidad, id) VALUES (?, ?, ?)";
-
-        cx.transaction(ctxt -> {
-            Connection conn = ctxt.handle();
-            LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
-
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString, Statement.RETURN_GENERATED_KEYS)) {
-                centroToParams(pstmt, centro);
-                pstmt.executeUpdate();
-                try(ResultSet rs = pstmt.getGeneratedKeys()) {
-                    if(rs.next()) centro.setId(rs.getLong(1));
-                }
-                lm.sendMessage(
-                    getClass(),
-                    Level.DEBUG,
-                    "Centro con ID=%d agregado".formatted(centro.getId()),
-                    "Trasacción fallida: Centro con ID=%d no se llega a agregar".formatted(centro.getId())
-                );
-            }
-        });
+        cx.getSqlAssistant().execute(sqlString, centro.getNombre(), centro.getTitularidad().toString(), centro.getId());
     }
 
     @Override
     public void update(Centro centro) throws DataAccessException {
         String sqlString = "UPDATE Centro SET nombre = ?, titularidad = ? WHERE id = ?";
-
-        cx.transaction(ctxt -> {
-            Connection conn = ctxt.handle();
-            LoggingManager lm =  ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
-
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
-                centroToParams(pstmt, centro);
-                boolean updated = pstmt.executeUpdate() > 0;
-                if(updated) {
-                    lm.sendMessage(
-                        getClass(),
-                        Level.DEBUG,
-                        "Centro con ID=%d actualizado".formatted(centro.getId()),
-                        "Trasacción fallida: Centro con ID=%d no se llega a actualizar".formatted(centro.getId())
-                    );
-                }
-                else logger.trace("Centro con ID={} no encontrado", centro.getId());
-            }
-        });
+        cx.getSqlAssistant().execute(sqlString, centro.getNombre(), centro.getTitularidad().toString(), centro.getId());
     }
 
     @Override
     public void update(Long oldId, Long newId) throws DataAccessException {
         String sqlString = "UPDATE Centro SET id_centro = ? WHERE id_centro = ?";
-
-        cx.transaction(ctxt -> {
-            Connection conn = ctxt.handle();
-            LoggingManager lm =  ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
-
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
-                pstmt.setLong(1, oldId);
-                pstmt.setLong(2, newId);
-                boolean updated = pstmt.executeUpdate() > 0;
-                if(updated) {
-                    lm.sendMessage(
-                        getClass(),
-                        Level.DEBUG,
-                        "Centro con ID=%d actualizado a ID=%d".formatted(oldId, newId),
-                        "Trasacción fallida: Centro con ID=%d no se llega a actualizar a ID=%d".formatted(oldId, newId)
-                    );
-                }
-                else logger.trace("Centro con ID={} no encontrado", oldId);
-            }
-        });
+        cx.getSqlAssistant().execute(sqlString, newId, oldId);
     }
 }

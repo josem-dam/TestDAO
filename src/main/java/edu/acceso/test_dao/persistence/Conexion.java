@@ -9,8 +9,12 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.slf4j.event.Level;
+
 import edu.acceso.sqlutils.errors.DataAccessException;
 import edu.acceso.sqlutils.jdbc.JdbcConnection;
+import edu.acceso.sqlutils.jdbc.SqlAssistant;
+import edu.acceso.sqlutils.jdbc.SqlAssistant.SqlAssistantConfig;
 import edu.acceso.sqlutils.jdbc.SqlUtils;
 import edu.acceso.sqlutils.jdbc.tx.TransactionManager;
 import edu.acceso.sqlutils.tx.Transactionable;
@@ -43,9 +47,22 @@ public class Conexion implements AutoCloseable {
      * @param password La contraseña para la base de datos.
      */
     private Conexion(String key, String dbUrl, String user, String password) {
+        // Configuración del asistente SQL con registro de mensajes de depuración
+        SqlAssistantConfig sqlConfig = new SqlAssistantConfig((ctxt, message, errorMessage) -> {
+            // Configuración de logging para SQL
+            LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
+            lm.sendMessage(
+                getClass(),
+                Level.DEBUG,
+                message,
+                errorMessage
+            );
+        });
+
         // Conector con gestor de transacciones y logging integrado
         jc = JdbcConnection.create(key, dbUrl, user, password)
-            .withTransactionManager(Map.of(LoggingManager.KEY, new LoggingManager()));
+            .withTransactionManager(Map.of(LoggingManager.KEY, new LoggingManager()))
+            .withSqlAssistant(sqlConfig);
     }
 
     /**
@@ -151,6 +168,14 @@ public class Conexion implements AutoCloseable {
     public void transaction(Transactionable<Connection> operations) throws DataAccessException {
         if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
         jc.getTransactionManager().transaction(operations);
+    }
+
+    /**
+     * Obtiene el asistente SQL asociado a esta conexión.
+     * @return El asistente SQL asociado a esta conexión.
+     */
+    public SqlAssistant getSqlAssistant() {
+        return jc.getSqlAssistant();
     }
 
     /**

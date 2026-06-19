@@ -1,6 +1,5 @@
 package edu.acceso.test_dao.persistence.dao;
 
-import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -8,16 +7,14 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.event.Level;
 
 import edu.acceso.sqlutils.errors.DataAccessException;
-import edu.acceso.sqlutils.tx.event.LoggingManager;
+import edu.acceso.sqlutils.jdbc.SqlAssistant.KeyHandler;
 import edu.acceso.test_dao.modelo.Centro;
 import edu.acceso.test_dao.modelo.Estudiante;
 import edu.acceso.test_dao.persistence.Conexion;
@@ -83,23 +80,7 @@ public class EstudianteSqlDao implements Crud<Estudiante> {
             FROM Centro c JOIN Estudiante e ON e.centro = c.id 
             WHERE e.id = ?
             """;
-
-        return cx.transactionR(ctxt -> {
-            Connection conn = ctxt.handle();
-
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
-                pstmt.setLong(1, id);
-                try(ResultSet rs = pstmt.executeQuery()) {
-                    Estudiante estudiante = rs.next() ? resultSetToEstudiante(rs, "", "c_") : null;
-                    if(estudiante == null) logger.trace("Estudiante con ID={} no encontrado", id);
-                    else logger.trace("Estudiante con ID={} encontrado", id);
-                    return Optional.ofNullable(estudiante);
-                }
-            }
-            catch(SQLException e) {
-                throw new DataAccessException("Imposible obtener el estudiante: %s".formatted(e.getMessage()), e);
-            }
-        });
+        return cx.getSqlAssistant().selectOne(sqlString, (rs, num) -> resultSetToEstudiante(rs, "", "c_"), id);
     }
 
     @Override
@@ -108,119 +89,50 @@ public class EstudianteSqlDao implements Crud<Estudiante> {
             SELECT e.*, c.id_centro AS c_id, c.nombre AS c_nombre, c.titularidad AS c_titularidad
             FROM Centro c JOIN Estudiante e ON e.centro = c.id
             """;
-
-        return cx.transactionR(ctxt -> {
-            Connection conn = ctxt.handle();
-
-            List<Estudiante> estudiantes = new ArrayList<>();
-            try(Statement pstmt = conn.createStatement()) {
-                try(ResultSet rs = pstmt.executeQuery(sqlString)) {
-                    while(rs.next()) {
-                        estudiantes.add(resultSetToEstudiante(rs, "", "c_"));
-                    }
-                    logger.trace("Obtenidos {} estudiantes", estudiantes.size());
-                    return estudiantes;
-                }
-            }
-        });
+        return cx.getSqlAssistant().select(sqlString, (rs, num) -> resultSetToEstudiante(rs, "", "c_"));
     }
 
     public void delete(Long id) throws DataAccessException {
         String sqlString = "DELETE FROM Estudiante WHERE id = ?";
-
-        cx.transaction(ctxt -> {
-            Connection conn = ctxt.handle();
-            LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
-
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
-                pstmt.setLong(1, id);
-                boolean deleted = pstmt.executeUpdate() > 0;
-                if(deleted) {
-                    lm.sendMessage(
-                        getClass(),
-                        Level.DEBUG,
-                        "Estudiante con ID=%d borrado".formatted(id),
-                        "Trasacción fallida: Estudiante con ID=%d no se llega a borrar".formatted(id)
-                    );
-                }
-                else logger.trace("Estudiante con ID={} no encontrado", id);
-            }
-        });
+        cx.getSqlAssistant().execute(sqlString, id);
     }
 
     @Override
     public void insert(Estudiante estudiante) throws DataAccessException {
         String sqlString = "INSERT INTO Estudiante (nombre, nacimiento, centro, id) VALUES (?, ?, ?, ?)";
+        KeyHandler keyHandler = new KeyHandler();
 
-        cx.transaction(ctxt -> {
-            Connection conn = ctxt.handle();
-             LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
+        cx.getSqlAssistant().execute(conn -> {
+            PreparedStatement pstmt = conn.prepareStatement(sqlString, Statement.RETURN_GENERATED_KEYS);
+            estudianteToParams(pstmt, estudiante);
+            return pstmt;
+        }, keyHandler);
 
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString, Statement.RETURN_GENERATED_KEYS)) {
-                estudianteToParams(pstmt, estudiante);
-                pstmt.executeUpdate();
-                try(ResultSet rs = pstmt.getGeneratedKeys())  {
-                    if(rs.next()) estudiante.setId(rs.getLong(1));
-                }
-                lm.sendMessage(
-                    getClass(),
-                    Level.DEBUG,
-                    "Estudiante con ID=%d agregado".formatted(estudiante.getId()),
-                    "Trasacción fallida: Estudiante con ID=%d no se llega a agregar".formatted(estudiante.getId())
-                );
-            }
-            catch(SQLException e) {
-                throw new DataAccessException("Imposible agregar el estudiante con ID=%d: %s".formatted(estudiante.getId(), e.getMessage()), e);
-            }
-        });
+        estudiante.setId(((Integer) keyHandler.getGeneratedKeys()[0]).longValue());
     }
 
     @Override
     public void update(Estudiante estudiante) throws DataAccessException {
         String sqlString = "UPDATE Estudiante SET nombre = ?, nacimiento = ?, centro = ? WHERE id = ?";
 
-        cx.transaction(ctxt -> {
-            Connection conn = ctxt.handle();
-             LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
-
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
-                estudianteToParams(pstmt, estudiante);
-                boolean updated = pstmt.executeUpdate() > 0;
-                if(updated) {
-                    lm.sendMessage(
-                        getClass(),
-                        Level.DEBUG,
-                        "Estudiante con ID=%d actualizado".formatted(estudiante.getId()),
-                        "Trasacción fallida: Estudiante con ID=%d no se llega a actualizar".formatted(estudiante.getId())
-                    );
-                }
-                else logger.trace("Estudiante con ID={} no encontrado", estudiante.getId());
-            }
+        cx.getSqlAssistant().execute(sqlString,
+            new Integer[] {
+                Types.VARCHAR,
+                Types.DATE,
+                Types.BIGINT,
+                Types.BIGINT
+            },
+            new Object[] {
+                estudiante.getNombre(),
+                estudiante.getNacimiento(),
+                estudiante.getCentro() == null?null:estudiante.getCentro().getId(),
+                estudiante.getId()
         });
     }
 
     @Override
     public void update(Long oldId, Long newId) throws DataAccessException {
         String sqlString = "UPDATE Estudiante SET id_estudiante = ? WHERE id_estudiante = ?";
-
-        cx.transaction(ctxt -> {
-            Connection conn = ctxt.handle();
-             LoggingManager lm = ctxt.getEventListener(LoggingManager.KEY, LoggingManager.class);
-
-            try(PreparedStatement pstmt = conn.prepareStatement(sqlString)) {
-                pstmt.setLong(1, oldId);
-                pstmt.setLong(2, newId);
-                boolean updated = pstmt.executeUpdate() > 0;
-                if(updated) {
-                    lm.sendMessage(
-                        getClass(),
-                        Level.DEBUG,
-                        "Estudiante con ID=%d actualizado a ID=%d".formatted(oldId, newId),
-                        "Trasacción fallida: Estudiante con ID=%d no se llega a actualizar a ID=%d".formatted(oldId, newId)
-                    );
-                }
-                else logger.trace("Estudiante con ID={} no encontrado", oldId);
-            }
-        });
+        cx.getSqlAssistant().execute(sqlString, newId, oldId);
     }
 }
