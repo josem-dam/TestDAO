@@ -1,6 +1,5 @@
 package edu.acceso.test_dao;
 
-import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -18,7 +17,6 @@ import edu.acceso.test_dao.persistence.Conexion;
 
 public class Main {
     private static final String db = "jdbc:sqlite:file::memory:?cache=shared";
-    private static final InputStream esquema = Main.class.getResourceAsStream("/esquema.sql");
     private static final DateTimeFormatter df = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final Level DEFAULT_LOG_LEVEL = Level.DEBUG;
 
@@ -33,7 +31,7 @@ public class Main {
         try {
             // Establecemos la conexión a la base de datos y la inicializamos con el esquema.
             conexion = Conexion.create(KEY, db, null, null)
-                .initialize(esquema);
+                .initialize();
         }
         catch(DataAccessException e) {
             System.err.printf("\nERROR INESPERADO al crear la conexión: %s.\n", e.getMessage());

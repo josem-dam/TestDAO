@@ -2,10 +2,17 @@ package edu.acceso.test_dao.modelo;
 
 import java.util.Arrays;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+
 /**
  * Modela un centro de enseñanza.
  */
-public class Centro implements Entity {
+@Entity
+public class Centro {
 
     /**
      * Enumeración de las titularidades de un centro.
@@ -50,14 +57,18 @@ public class Centro implements Entity {
     /**
      * Código identificativo del centro.
      */
+    @Id
     private Long id;
     /**
      * Nombre del centro.
      */
+    @Column(nullable = false, length = 100)
     private String nombre;
     /**
      * Titularidad: pública o privada.
      */
+    @Column(nullable = false)
+    @Enumerated(EnumType.ORDINAL)
     private Titularidad titularidad;
 
     /**
@@ -92,12 +103,10 @@ public class Centro implements Entity {
         inicializar(id, nombre, titularidad);
     }
 
-    @Override
     public Long getId() {
         return id;
     }
 
-    @Override
     public void setId(Long id) {
         this.id = id;
     }

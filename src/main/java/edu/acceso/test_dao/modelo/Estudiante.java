@@ -3,27 +3,42 @@ package edu.acceso.test_dao.modelo;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+
 /**
  * Modela un estudiante.
  */
-public class Estudiante implements Entity {
+@Entity
+public class Estudiante {
 
     /**
      * Identificador del estudiante.
      */
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     /**
      * Nombre completo del estudiante.
      */
+    @Column(nullable = false)
     private String nombre;
     /**
      * Fecha de nacimiento del estudiante.
      */
+    @Column(nullable = false)
     private LocalDate nacimiento;
 
     /**
      * Centro al que está adscrito.
      */
+    @ManyToOne
+    @JoinColumn(name = "centro", nullable = true)
     private Centro centro;
 
     public Estudiante() {
@@ -58,12 +73,10 @@ public class Estudiante implements Entity {
         this.cargarDatos(id, nombre, nacimiento, centro);
     }
 
-    @Override
     public Long getId() {
         return id;
     }
 
-    @Override
     public void setId(Long id) {
         this.id = id;
     }

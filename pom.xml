@@ -20,6 +20,7 @@
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
+        <hibernate.version>7.3.0.Final</hibernate.version>
     </properties>
 
     <profiles>
@@ -55,6 +56,7 @@
                 <configuration>
                     <source>21</source>   <!-- Versión de Java utilizada -->
                     <show>private</show>  <!-- Incluye entidades privadas -->
+                    <sourcepath>${project.build.sourceDirectory};${project.build.directory}/generated-sources/annotations</sourcepath>
                 </configuration>
             </plugin>
         </plugins>
@@ -81,25 +83,71 @@
             <version>2.1.0-alpha1</version>
         </dependency>
 
-        <!-- Dependencia para la conexión a SQLite -->
-        <dependency>
-            <groupId>org.xerial</groupId>
-            <artifactId>sqlite-jdbc</artifactId>
-            <version>3.51.1.0</version>
-            <scope>runtime</scope>
-        </dependency>
+      <!-- Especificación JPA -->
+      <dependency>
+          <groupId>jakarta.persistence</groupId>
+          <artifactId>jakarta.persistence-api</artifactId>
+          <version>3.2.0</version>
+      </dependency>
+
+      <!-- Implementación de Hibernate para la especificación anterior -->
+      <dependency>
+          <groupId>org.hibernate.orm</groupId>
+          <artifactId>hibernate-core</artifactId>
+          <version>${hibernate.version}</version>
+          <scope>runtime</scope>
+      </dependency>
+
+            <!-- Soporte en Hibernate para SQLite -->
+      <dependency>
+          <groupId>org.hibernate.orm</groupId>
+          <artifactId>hibernate-community-dialects</artifactId>
+          <version>${hibernate.version}</version>
+          <scope>runtime</scope>
+      </dependency>
+
+      <!-- Opcional para anotaciones de comprobación -->
+      <dependency>
+          <groupId>jakarta.validation</groupId>
+          <artifactId>jakarta.validation-api</artifactId>
+          <version>3.1.1</version>
+      </dependency>
+
+     <!-- Implementación de Hibernate para la especificación anterior -->
+     <dependency>
+         <groupId>org.hibernate.validator</groupId>
+         <artifactId>hibernate-validator</artifactId>
+         <version>9.1.0.Final</version>
+          <scope>runtime</scope>
+     </dependency>
+
+     <!-- Opcional para evaluación dinámica de cadenas de texto (puede necesitarlo Hibernate Validator) -->
+     <dependency>
+        <groupId>org.glassfish.expressly</groupId>
+        <artifactId>expressly</artifactId>
+        <version>6.0.0</version>
+        <scope>runtime</scope>
+     </dependency>
 
         <dependency>
             <groupId>com.github.sio2sio2.sqlutils</groupId>
-            <artifactId>sqlutils-jdbc</artifactId>
-            <version>4.5.0</version>
+            <artifactId>sqlutils-jpa</artifactId>
+            <version>4.5.6</version>
+        </dependency>
+
+        <!-- Driver JDBC para SQLite -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.53.1.0</version>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- Pool de conexiones con HikariCP -->
         <dependency>
             <groupId>com.github.sio2sio2.sqlutils</groupId>
             <artifactId>sqlutils-hikaricp</artifactId>
-            <version>4.5.0</version>
+            <version>4.5.6</version>
         </dependency>
     </dependencies>
 </project>

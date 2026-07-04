@@ -1,25 +1,25 @@
 package edu.acceso.test_dao.persistence;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.sql.Connection;
-import java.sql.SQLException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.zaxxer.hikari.HikariConfig;
+
+import edu.acceso.sqlutils.DbmsSelector;
+import edu.acceso.sqlutils.DataSourceFactory;
+import edu.acceso.sqlutils.datasource.hikari.HikariCPFactory;
 import edu.acceso.sqlutils.errors.DataAccessException;
-import edu.acceso.sqlutils.jdbc.JdbcConnection;
-import edu.acceso.sqlutils.jdbc.SqlUtils;
-import edu.acceso.sqlutils.jdbc.tx.TransactionManager;
+import edu.acceso.sqlutils.jpa.JpaConnection;
+import edu.acceso.sqlutils.jpa.tx.TransactionManager;
 import edu.acceso.sqlutils.tx.Transactionable;
 import edu.acceso.sqlutils.tx.TransactionableR;
 import edu.acceso.sqlutils.tx.event.LoggingManager;
-import edu.acceso.test_dao.modelo.Entity;
-import edu.acceso.test_dao.persistence.dao.CentroSqlDao;
-import edu.acceso.test_dao.persistence.dao.Crud;
-import edu.acceso.test_dao.persistence.dao.EstudianteSqlDao;
+import edu.acceso.test_dao.modelo.Centro;
+import edu.acceso.test_dao.modelo.Centro.Titularidad;
+import jakarta.persistence.EntityManager;
 
 /**
  * Gestiona las conexiones a la base de datos.
@@ -32,7 +32,7 @@ public class Conexion implements AutoCloseable {
 
     private static final Map<String, Conexion> instances = new ConcurrentHashMap<>(); 
 
-    private final JdbcConnection jc;
+    private final JpaConnection jc;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     /**
@@ -42,9 +42,9 @@ public class Conexion implements AutoCloseable {
      * @param user El nombre de usuario para la base de datos.
      * @param password La contraseña para la base de datos.
      */
-    private Conexion(String key, String dbUrl, String user, String password) {
+    private Conexion(String key, Map<String, Object> props) {
         // Conector con gestor de transacciones y logging integrado
-        jc = JdbcConnection.create(key, dbUrl, user, password)
+        jc = JpaConnection.create(key, props)
             .withTransactionManager(Map.of(LoggingManager.KEY, new LoggingManager()));
     }
 
@@ -62,7 +62,27 @@ public class Conexion implements AutoCloseable {
 
         if(instances.containsKey(key)) throw new IllegalStateException("Ya existe una conexión para la clave %s".formatted(key));
 
-        Conexion instance = new Conexion(key, dbUrl, user, password);
+        DbmsSelector sgbd = DbmsSelector.fromUrl(dbUrl);
+        JpaProvider provider = JpaProvider.HIBERNATE.withSgbd(sgbd);
+
+        // Configuramos el DataSourceFactory para la conexión
+        // Si no lo configuraramos, se usaría también HikariCPFactory,
+        // pero con la configuración por defecto incluida en sqlutils-hikaricp.
+        HikariConfig config = new HikariConfig();
+        config.setMaximumPoolSize(5);
+        config.setMinimumIdle(1);
+        DataSourceFactory df = new HikariCPFactory(config);
+
+        // Construimos el mapa dinámico con las propiedades de conexión
+        Map<String, Object> props = Map.of(
+            "jakarta.persistence.jdbc.url", dbUrl,
+            //"jakarta.persistence.jdbc.user", user,
+            //"jakarta.persistence.jdbc.password", password
+            provider.getDialectKey(), provider.getDialect(),
+            "sqlutils.datasource.factory", df
+        );
+
+        Conexion instance = new Conexion(key, props);
         Conexion previa = instances.putIfAbsent(key, instance);
         if(previa != null) {
             instance.close();
@@ -70,6 +90,18 @@ public class Conexion implements AutoCloseable {
         }
 
         return instance;
+    }
+
+    public Conexion initialize() {
+        List<Centro> centros = List.of(
+            new Centro(11004866L, "IES Castillo de Luna", Titularidad.PUBLICA),
+            new Centro(11700603L, "IES Pintor Juan Lara", Titularidad.PUBLICA),
+            new Centro(11007533L, "IES Arroyo Hondo", Titularidad.PUBLICA)
+        );
+
+        AppService service = new AppService(jc.getKey());
+        centros.forEach(service::agregarCentro);
+        return this;
     }
 
     /**
@@ -89,30 +121,6 @@ public class Conexion implements AutoCloseable {
             instances.remove(key, instance);
             throw new IllegalStateException("La conexión solicitada no existe.");
         }
-    }
-
-    /**
-     * Inicializa la base de datos con el esquema dado. Si la base de datos ya está inicializada, no hace nada.
-     * @param esquema Un InputStream con el esquema SQL para inicializar la base de datos.
-     * @return La propia instancia de Conexion, para permitir encadenar llamadas.
-     * @throws DataAccessException Si hubo algún problema en el acceso a los datos durante la inicialización.
-     */
-    public Conexion initialize(InputStream esquema) throws DataAccessException {
-        transaction(ctxt -> {
-            Connection conn = ctxt.handle();
-
-            // Si la base de datos ya está inicializada, no hacemos nada.
-            if(!SqlUtils.isDatabaseEmpty(conn)) return;
-
-            try {
-                SqlUtils.executeSQL(conn, esquema);
-            } catch(SQLException e) {
-                throw new DataAccessException("Error al crear el esquema en la base de datos", e);
-            } catch(IOException e) {
-                throw new RuntimeException("Error al intentar leer el esquema", e);
-            }
-        });         
-        return this;
     }
 
     /**
@@ -138,7 +146,7 @@ public class Conexion implements AutoCloseable {
      * @return El resultado de la transacción.
      * @throws DataAccessException Si hubo algún problema en el acceso a los datos.
      */
-    public <T> T transactionR(TransactionableR<Connection, T> operations) throws DataAccessException {
+    public <T> T transactionR(TransactionableR<EntityManager, T> operations) throws DataAccessException {
         if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
         return jc.getTransactionManager().transaction(operations);
     }
@@ -148,23 +156,8 @@ public class Conexion implements AutoCloseable {
      * @param operations Las operaciones a ejecutar dentro de la transacción.
      * @throws DataAccessException Si hubo algún problema en el acceso a los datos.
      */
-    public void transaction(Transactionable<Connection> operations) throws DataAccessException {
+    public void transaction(Transactionable<EntityManager> operations) throws DataAccessException {
         if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
         jc.getTransactionManager().transaction(operations);
-    }
-
-    /**
-     * Obtiene un DAO para la clase de entidad dada.
-     * @param <E> El tipo de entidad para el que se solicita el DAO.
-     * @param clazz La clase de entidad para la que se solicita el DAO.
-     * @return El DAO solicitado.
-     */
-    @SuppressWarnings("unchecked")
-    public <E extends Entity> Crud<E> getDao(Class<E> clazz) {
-        return switch(clazz.getSimpleName()) {
-            case "Centro" -> (Crud<E>) new CentroSqlDao(jc.getKey());
-            case "Estudiante" -> (Crud<E>) new EstudianteSqlDao(jc.getKey());
-            default -> throw new IllegalArgumentException("No se ha definido un DAO para la clase %s".formatted(clazz.getName()));
-        };
     }
 }
