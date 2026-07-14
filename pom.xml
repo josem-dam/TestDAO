@@ -83,56 +83,70 @@
             <version>2.1.0-alpha1</version>
         </dependency>
 
-      <!-- Especificación JPA -->
-      <dependency>
-          <groupId>jakarta.persistence</groupId>
-          <artifactId>jakarta.persistence-api</artifactId>
-          <version>3.2.0</version>
-      </dependency>
+        <!-- Especificación JPA -->
+        <dependency>
+            <groupId>jakarta.persistence</groupId>
+            <artifactId>jakarta.persistence-api</artifactId>
+            <version>3.2.0</version>
+        </dependency>
 
-      <!-- Implementación de Hibernate para la especificación anterior -->
-      <dependency>
-          <groupId>org.hibernate.orm</groupId>
-          <artifactId>hibernate-core</artifactId>
-          <version>${hibernate.version}</version>
-          <scope>runtime</scope>
-      </dependency>
+        <!-- Implementación de Hibernate para la especificación anterior -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>${hibernate.version}</version>
+            <scope>runtime</scope>
+        </dependency>
 
-            <!-- Soporte en Hibernate para SQLite -->
-      <dependency>
-          <groupId>org.hibernate.orm</groupId>
-          <artifactId>hibernate-community-dialects</artifactId>
-          <version>${hibernate.version}</version>
-          <scope>runtime</scope>
-      </dependency>
+                <!-- Soporte en Hibernate para SQLite -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-community-dialects</artifactId>
+            <version>${hibernate.version}</version>
+            <scope>runtime</scope>
+        </dependency>
 
-      <!-- Opcional para anotaciones de comprobación -->
-      <dependency>
-          <groupId>jakarta.validation</groupId>
-          <artifactId>jakarta.validation-api</artifactId>
-          <version>3.1.1</version>
-      </dependency>
+        <!-- Opcional para anotaciones de comprobación -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+            <version>3.1.1</version>
+        </dependency>
 
-     <!-- Implementación de Hibernate para la especificación anterior -->
-     <dependency>
-         <groupId>org.hibernate.validator</groupId>
-         <artifactId>hibernate-validator</artifactId>
-         <version>9.1.0.Final</version>
-          <scope>runtime</scope>
-     </dependency>
+        <!-- Implementación de Hibernate para la especificación anterior -->
+        <dependency>
+            <groupId>org.hibernate.validator</groupId>
+            <artifactId>hibernate-validator</artifactId>
+            <version>9.1.0.Final</version>
+            <scope>runtime</scope>
+        </dependency>
 
-     <!-- Opcional para evaluación dinámica de cadenas de texto (puede necesitarlo Hibernate Validator) -->
-     <dependency>
-        <groupId>org.glassfish.expressly</groupId>
-        <artifactId>expressly</artifactId>
-        <version>6.0.0</version>
-        <scope>runtime</scope>
-     </dependency>
+        <!-- Opcional para evaluación dinámica de cadenas de texto (puede necesitarlo Hibernate Validator) -->
+        <dependency>
+            <groupId>org.glassfish.expressly</groupId>
+            <artifactId>expressly</artifactId>
+            <version>6.0.0</version>
+            <scope>runtime</scope>
+        </dependency>
 
+        <!-- Lo necesitamos para DbmsSelector -->
         <dependency>
             <groupId>com.github.sio2sio2.sqlutils</groupId>
-            <artifactId>sqlutils-jpa</artifactId>
+            <artifactId>sqlutils-core</artifactId>
             <version>4.5.6</version>
+        </dependency>
+
+        <!-- Spring -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <version>7.0.8</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-jpa</artifactId>
+            <version>4.1.0</version>
         </dependency>
 
         <!-- Driver JDBC para SQLite -->
@@ -143,11 +157,10 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Pool de conexiones con HikariCP -->
         <dependency>
-            <groupId>com.github.sio2sio2.sqlutils</groupId>
-            <artifactId>sqlutils-hikaricp</artifactId>
-            <version>4.5.6</version>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>7.1.0</version>
         </dependency>
     </dependencies>
 </project>

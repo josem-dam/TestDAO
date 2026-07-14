@@ -20,18 +20,21 @@ public enum JpaProvider {
             DbmsSelector.ORACLE, "org.hibernate.dialect.OracleDialect",
             DbmsSelector.MSSQL, "org.hibernate.dialect.SQLServerDialect",
             DbmsSelector.H2, "org.hibernate.dialect.H2Dialect"
-        )
+        ),
+        "org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter"
     );
 
     private final String providerClass;
     private final String dialectKey;
     private final Map<DbmsSelector, String> dialects;
+    private final String adapterClass;
     private DbmsSelector sgbd;
 
-    JpaProvider(String providerClass, String dialectKey, Map<DbmsSelector, String> dialects) {
+    JpaProvider(String providerClass, String dialectKey, Map<DbmsSelector, String> dialects, String adapterClass) {
         this.providerClass = providerClass;
         this.dialectKey = dialectKey;
         this.dialects = dialects;
+        this.adapterClass = adapterClass;
     }
 
     public JpaProvider withSgbd(DbmsSelector sgbd) {
@@ -60,5 +63,13 @@ public enum JpaProvider {
      */
     public String getDialect() {
         return dialects.get(sgbd);
+    }
+
+    /**
+     * Devuelve la clase del adaptador de proveedor de JPA para Spring.
+     * @return La clase del adaptador de proveedor de JPA para Spring.
+     */
+    public String getAdapterClass() {
+        return adapterClass;
     }
 }

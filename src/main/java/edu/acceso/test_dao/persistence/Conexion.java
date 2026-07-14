@@ -1,25 +1,26 @@
 package edu.acceso.test_dao.persistence;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Properties;
+
+import javax.sql.DataSource;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.orm.jpa.JpaTransactionManager;
+import org.springframework.orm.jpa.JpaVendorAdapter;
+import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionManager;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
 import edu.acceso.sqlutils.DbmsSelector;
-import edu.acceso.sqlutils.DataSourceFactory;
-import edu.acceso.sqlutils.datasource.hikari.HikariCPFactory;
-import edu.acceso.sqlutils.errors.DataAccessException;
-import edu.acceso.sqlutils.jpa.JpaConnection;
-import edu.acceso.sqlutils.jpa.tx.TransactionManager;
-import edu.acceso.sqlutils.tx.Transactionable;
-import edu.acceso.sqlutils.tx.TransactionableR;
-import edu.acceso.sqlutils.tx.event.LoggingManager;
-import edu.acceso.test_dao.modelo.Centro;
-import edu.acceso.test_dao.modelo.Centro.Titularidad;
-import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 
 /**
  * Gestiona las conexiones a la base de datos.
@@ -28,136 +29,108 @@ import jakarta.persistence.EntityManager;
  * La clase maneja con seguridad mútiples conexiones concurrentes, por lo que
  * resuelve un escenario bastante más amplio que el de este ejemplo.
  */
-public class Conexion implements AutoCloseable {
+@Configuration
+@ComponentScan(basePackages = "edu.acceso.test_dao.persistence")
+@EnableTransactionManagement
+@EnableJpaRepositories(basePackages = "edu.acceso.test_dao.persistence.repository")
+public class Conexion {
 
-    private static final Map<String, Conexion> instances = new ConcurrentHashMap<>(); 
+    private static final String PROVIDER_ADAPTER_CLASS = "provider.adapter.class";
+    private static final String PROVIDER_DIALECT_KEY = "provider.dialect.key";
+    private static final String PROVIDER_DIALECT_PREFIX = "provider.dialect";
 
-    private final JpaConnection jc;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final String dbUrl;
+    private final String user;
+    private final String password;
+    private final Properties properties;
+
+    private final String adapterClass;
 
     /**
      * Constructor privado.
-     * @param key La clave única para esta conexión.
-     * @param dbUrl La URL de la base de datos.
-     * @param user El nombre de usuario para la base de datos.
-     * @param password La contraseña para la base de datos.
-     */
-    private Conexion(String key, Map<String, Object> props) {
-        // Conector con gestor de transacciones y logging integrado
-        jc = JpaConnection.create(key, props)
-            .withTransactionManager(Map.of(LoggingManager.KEY, new LoggingManager()));
-    }
-
-    /**
-     * Crea una nueva instancia de Conexion.
-     * @param key La clave única para esta conexión.
      * @param dbUrl La URL de conexión a la base de datos. 
      * @param user El nombre de usuario para la base de datos.
      * @param password La contraseña para la base de datos.
-     * @return La instancia de Conexion creada.
-     * @throws IllegalStateException Si ya existe una conexión para la clave dada.
+     * @param provider El proveedor de JPA que da nombre al archivo de propiedades.
      */
-    public static Conexion create(String key, String dbUrl, String user, String password) {
-        Objects.requireNonNull(key, "La clave no puede ser nula.");
+    public Conexion(String dbUrl, String user, String password, String provider) {
+        Objects.requireNonNull(dbUrl, "La URL de conexión no puede ser nula.");
+        Objects.requireNonNull(provider, "El proveedor de JPA no puede ser nulo.");
 
-        if(instances.containsKey(key)) throw new IllegalStateException("Ya existe una conexión para la clave %s".formatted(key));
+        this.dbUrl = dbUrl;
+        this.user = user;
+        this.password = password;
 
-        DbmsSelector sgbd = DbmsSelector.fromUrl(dbUrl);
-        JpaProvider provider = JpaProvider.HIBERNATE.withSgbd(sgbd);
+        // Cargamos el archivo de propiedades de Hibernate.
+        properties = new Properties();
+        String fileName = "%s.properties".formatted(provider);
+        try (var inputStream = getClass().getClassLoader().getResourceAsStream(fileName)) {
+            if (inputStream == null) {
+                throw new RuntimeException("No se pudo encontrar el archivo de propiedades: " + fileName);
+            }
+            properties.load(inputStream);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al cargar el archivo de propiedades: " + fileName, e);
+        }
 
-        // Configuramos el DataSourceFactory para la conexión
-        // Si no lo configuraramos, se usaría también HikariCPFactory,
-        // pero con la configuración por defecto incluida en sqlutils-hikaricp.
+        String dbms = DbmsSelector.fromUrl(dbUrl).toString().toLowerCase();
+
+        adapterClass = properties.getProperty(PROVIDER_ADAPTER_CLASS);
+        String dialectKey = properties.getProperty(PROVIDER_DIALECT_KEY);
+        String sqlDialect = properties.getProperty("%s.%s".formatted(PROVIDER_DIALECT_PREFIX, dbms));
+
+        Objects.requireNonNull(adapterClass, "No ha incluido en el archivo de propiedades la clase del adaptador JPA (%s).".formatted(PROVIDER_ADAPTER_CLASS));
+        Objects.requireNonNull(dialectKey, "No ha incluido en el archivo de propiedades la clave del dialecto JPA (%s).".formatted(PROVIDER_DIALECT_KEY));
+        Objects.requireNonNull(sqlDialect, "No ha incluido en el archivo de propiedades el dialecto JPA para el SGBD (%s.%s).".formatted(PROVIDER_DIALECT_PREFIX, dbms));
+
+        // Eliminamos las propiedades que no configuran JPA.
+        properties.remove(PROVIDER_ADAPTER_CLASS);
+        properties.remove(PROVIDER_DIALECT_KEY);
+        properties.keySet().removeIf(k -> ((String) k).startsWith(PROVIDER_DIALECT_PREFIX + "."));
+
+        properties.put(dialectKey, sqlDialect);
+    }
+
+    @Bean
+    public DataSource dataSource() {
         HikariConfig config = new HikariConfig();
-        config.setMaximumPoolSize(5);
-        config.setMinimumIdle(1);
-        DataSourceFactory df = new HikariCPFactory(config);
 
-        // Construimos el mapa dinámico con las propiedades de conexión
-        Map<String, Object> props = Map.of(
-            "jakarta.persistence.jdbc.url", dbUrl,
-            //"jakarta.persistence.jdbc.user", user,
-            //"jakarta.persistence.jdbc.password", password
-            provider.getDialectKey(), provider.getDialect(),
-            "sqlutils.datasource.factory", df
-        );
+        config.setJdbcUrl(dbUrl);
+        if(user != null) config.setUsername(user);
+        if(password != null) config.setPassword(password);
 
-        Conexion instance = new Conexion(key, props);
-        Conexion previa = instances.putIfAbsent(key, instance);
-        if(previa != null) {
-            instance.close();
-            throw new IllegalStateException("Ya existe una conexión para la clave %s".formatted(key));
+        config.setMaximumPoolSize(10);
+        config.setMinimumIdle(2);
+
+        return new HikariDataSource(config);
+    }
+
+    @Bean
+    public LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
+        LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
+        em.setDataSource(dataSource);
+        // Paquete que contiene las clases del modelo
+        em.setPackagesToScan("edu.acceso.test_dao.modelo");
+
+        // Unidad de persistencia (contiene únicamente la configuración del proveedor)
+        //em.setPersistenceUnitName(key);
+
+        // Configuración del proveedor que depende del SGBD.
+        em.setJpaProperties(properties);
+
+        // Instanciamos dinámicamente el adaptador de proveedor de JPA para Spring.
+        try {
+            Class<?> vendorAdapterClass = Class.forName(adapterClass);
+            em.setJpaVendorAdapter((JpaVendorAdapter) vendorAdapterClass.getDeclaredConstructor().newInstance());
+        } catch (Exception e) {
+            throw new RuntimeException("Error al instanciar el proveedor JPA: " + adapterClass, e);
         }
 
-        return instance;
+        return em;
     }
 
-    public Conexion initialize() {
-        List<Centro> centros = List.of(
-            new Centro(11004866L, "IES Castillo de Luna", Titularidad.PUBLICA),
-            new Centro(11700603L, "IES Pintor Juan Lara", Titularidad.PUBLICA),
-            new Centro(11007533L, "IES Arroyo Hondo", Titularidad.PUBLICA)
-        );
-
-        AppService service = new AppService(jc.getKey());
-        centros.forEach(service::agregarCentro);
-        return this;
-    }
-
-    /**
-     * Obtiene la instancia de Conexion asociada a la clave dada.
-     * @param key La clave única para esta conexión.
-     * @return La instancia de Conexion asociada a la clave.
-     * @throws IllegalStateException Si no existe una conexión para la clave dada.
-     */
-    public static Conexion get(String key) {
-        Objects.requireNonNull(key, "La clave no puede ser nula.");
-
-        Conexion instance = instances.get(key);
-        if (instance == null) throw new IllegalStateException("No existe una conexión para la clave %s".formatted(key));
-
-        if(instance.isOpen()) return instance;
-        else {
-            instances.remove(key, instance);
-            throw new IllegalStateException("La conexión solicitada no existe.");
-        }
-    }
-
-    /**
-     * Verifica si la conexión está abierta.
-     * @return true si la conexión está abierta, false si está cerrada.
-     */
-    public boolean isOpen() {
-        return !closed.get() && jc.isOpen();
-    }
-
-    @Override
-    public void close() {
-        if (closed.compareAndSet(false, true)) {
-            instances.remove(jc.getKey(), this);
-            jc.close();
-        }
-    }
-
-    /**
-     * Ejecuta una transacción con resultado.
-     * @param <T> El tipo de resultado de la transacción.
-     * @param operations Las operaciones a ejecutar dentro de la transacción.
-     * @return El resultado de la transacción.
-     * @throws DataAccessException Si hubo algún problema en el acceso a los datos.
-     */
-    public <T> T transactionR(TransactionableR<EntityManager, T> operations) throws DataAccessException {
-        if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
-        return jc.getTransactionManager().transaction(operations);
-    }
-
-    /**
-     * Ejecuta una transacción sin resultado.
-     * @param operations Las operaciones a ejecutar dentro de la transacción.
-     * @throws DataAccessException Si hubo algún problema en el acceso a los datos.
-     */
-    public void transaction(Transactionable<EntityManager> operations) throws DataAccessException {
-        if(!isOpen()) throw new IllegalStateException("La conexión está cerrada.");
-        jc.getTransactionManager().transaction(operations);
+    @Bean
+    public PlatformTransactionManager transactionManager(EntityManagerFactory entityManagerFactory) {
+        return new JpaTransactionManager(entityManagerFactory);
     }
 }
